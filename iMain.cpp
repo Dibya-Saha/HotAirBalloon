@@ -23,18 +23,18 @@ struct PlayerScore {
 
 vector<PlayerScore> highScores;
 const string HIGHSCORE_FILE = "highscores.txt";
-const int MAX_HIGHSCORES = 5;
+const int MAX_HIGHSCORES = 10;
 
 char playerName[50] = "";
 int playerNameIndex = 0;
 bool inputName = false;
 int finalScore = 0;
 int obstacleSpeed = 2; // Changed to int
-int health = 3;
+int health = 3; // Initial health value
 int coinsCollected = 0;
 
 char hab[10][13] = {"hab001_1.png","hab002_1.png","hab003_1.png","hab004_1.png","hab005_1.png",
-                    "hab006_1.png","hab007_1.png","hab008_1.png","hab009_1.png","hab010_1.png"};
+                     "hab006_1.png","hab007_1.png","hab008_1.png","hab009_1.png","hab010_1.png"};
 char obs[3][10] = {"obs1.png","obs2.png","obs3.png"};
 char cloud[7][13] = {"cloud1.png","cloud2.png","cloud3.png","cloud4.png","cloud5.png","cloud6.png","cloud7.png"};
 char menu[5][15] = {"menu_1.png","menu_2.png","menu_3.png","menu_4.png","menu_5.png"};
@@ -86,6 +86,15 @@ int habHeight = 0;
 // --- Back Button Position Constants ---
 const int BACK_BUTTON_X = 1300;
 const int BACK_BUTTON_Y = 740;
+
+// --- Image Declarations ---
+Image healthIcon; // Declared globally
+Image coinCollectIcon; // Declare coin collection icon
+
+// --- Constants for Health Icon Display ---
+const int HEALTH_ICON_START_X = 10;  // Starting X position for the first health icon
+const int HEALTH_ICON_Y = 715;       // Y position for all health icons
+const int HEALTH_ICON_GAP = 5;       // Gap between health icons
 
 // --- Existing Game Functions ---
 void scoreupdate() {
@@ -422,17 +431,22 @@ void iDraw() {
         // Display game stats
         char str[30];
         sprintf(str, "Score: %d", score);
-        iText(10, 760, str, GLUT_BITMAP_HELVETICA_18);
+        iText(10, 770, str, GLUT_BITMAP_HELVETICA_18);
         sprintf(str, "Speed: %d", obstacleSpeed); // Display as int
-        iText(10, 740, str, GLUT_BITMAP_HELVETICA_18);
-        char lifeStr[20];
-        sprintf(lifeStr, "Health: %d", health);
-        iText(10, 720, lifeStr, GLUT_BITMAP_HELVETICA_18);
+        iText(10, 750, str, GLUT_BITMAP_HELVETICA_18);
+        
+        // --- MODIFIED: Display Multiple Health Icons ---
+        for (int i = 0; i < health; ++i) {
+            int currentIconX = HEALTH_ICON_START_X + (healthIcon.width + HEALTH_ICON_GAP) * i;
+            iShowLoadedImage(currentIconX, HEALTH_ICON_Y, &healthIcon);
+        }
+        // --- END MODIFIED ---
 
-        // Display collected coin count below lives
-        char coinCountStr[30];
-        sprintf(coinCountStr, "Coin: %d", coinsCollected);
-        iText(10, 700, coinCountStr, GLUT_BITMAP_HELVETICA_18);
+        // Display Coin Icon and Coins Collected Value
+        iShowLoadedImage(10, 680, &coinCollectIcon); // Position the coin icon below health
+        char coinCountStr[30]; // Buffer for coins collected number
+        sprintf(coinCountStr, "%d", coinsCollected); // Just the number
+        iText(10 + coinCollectIcon.width + 5, 685, coinCountStr, GLUT_BITMAP_HELVETICA_18); // Position number next to icon
 
         // Show Back button in gameplay
         iShowLoadedImage(BACK_BUTTON_X, BACK_BUTTON_Y, &back);
@@ -454,8 +468,8 @@ void iDraw() {
 
         // Centering "Press ENTER to start the game."
         // Estimated x for centering 'Press ENTER to start the game.'
-        int pressEnterX = (1400 - 350) / 2; // Adjusted for visual centering
-        iText(pressEnterX, 300, "Press ENTER to start the game.", GLUT_BITMAP_HELVETICA_18);
+        
+        iText(560, 300, "Press ENTER to start the game.", GLUT_BITMAP_HELVETICA_18);
 
         // Show Back button
         iShowLoadedImage(BACK_BUTTON_X, BACK_BUTTON_Y, &back);
@@ -688,21 +702,21 @@ int main(int argc, char *argv[])
     glutInit(&argc, argv);
     srand(time(0)); // Seed the random number generator using current time
 
-    // --- Prepare and Load Coin Image Files ---
+    // --- Prepare and Load Coin Image Files (for rotating animation) ---
     for(int i = 0; i < 14; ++i) {
         sprintf(coinFiles[i], "coin%d.png", i + 1); // Generates "coin1.png", "coin2.png", etc.
     }
     for(int i = 0; i < 14; ++i) {
         iLoadImage(&coinFrames[i], coinFiles[i]);
-        // Resize each coin frame to your desired dimensions (e.g., 50x50 pixels)
-        iResizeImage(&coinFrames[i], 50, 50);
+        // Resize each coin frame to your desired dimensions (e.g., 30x30 pixels for collected coins)
+        iResizeImage(&coinFrames[i], 30, 30); // These are the coins that move on screen
     }
     // Get coin dimensions from the first loaded image (now it will be the resized dimension)
     if (14 > 0) {
         coinWidth = coinFrames[0].width;
         coinHeight = coinFrames[0].height;
     }
-    // --- End Coin Loading ---
+    // --- End Coin Loading for animated coins ---
 
 
     // Load obstacle images
@@ -757,13 +771,23 @@ int main(int argc, char *argv[])
     iLoadImage(&heartbreak, "heartbreak.png"); // Collision feedback image
     iLoadImage(&back, "backbutton.png");    // Back button image
 
+    // --- Load and Resize Health Icon ---
+    iLoadImage(&healthIcon, "Healthicon.png");
+    iResizeImage(&healthIcon, 30, 30); // Set the desired size for the health icon
+    // --- End Health Icon ---
+
+    // --- NEW: Load and Resize Coin Collection Icon (for HUD) ---
+    iLoadImage(&coinCollectIcon, "Coinicon.png"); // Load the Coinicon.png file (was .jpg)
+    iResizeImage(&coinCollectIcon, 30, 30); // Resize it to 30x30 pixels
+    // --- END NEW ---
+
     // Set up game timers for continuous updates
-    iSetTimer(500,incmnt);      // Balloon animation
-    iSetTimer(16,cldx);         // Cloud horizontal movement
-    iSetTimer(16,cldy);         // Cloud vertical movement
-    iSetTimer(1, move);         // Player balloon movement (highly frequent for responsiveness)
-    iSetTimer(16,obstacle);     // Obstacle movement and regeneration
-    iSetTimer(33,scoreupdate);  // Score update and speed increase
+    iSetTimer(500,incmnt);       // Balloon animation
+    iSetTimer(16,cldx);          // Cloud horizontal movement
+    iSetTimer(16,cldy);          // Cloud vertical movement
+    iSetTimer(1, move);          // Player balloon movement (highly frequent for responsiveness)
+    iSetTimer(16,obstacle);      // Obstacle movement and regeneration
+    iSetTimer(33,scoreupdate);   // Score update and speed increase
 
     // Coin timers
     iSetTimer(50, coinAnimate); // Coin rotation animation (change frame every 50ms)

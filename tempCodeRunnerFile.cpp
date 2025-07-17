@@ -1,1 +1,1 @@
-"sky.jpg"
+iInitialize
