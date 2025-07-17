@@ -1,6 +1,5 @@
 #include "iGraphics.h"
-#include "iSound.h" // Assuming iSound.h exists and provides sound functions
-// #include "iFont.h" // Not explicitly used for iText, but good to include if using iShowText for custom fonts
+#include "iSound.h"
 #include <time.h>
 #include <stdlib.h>
 #include <string>
@@ -9,7 +8,7 @@
 #include <fstream>
 #include <iostream>
 #include <ctype.h>
-#include <cmath> // For std::pow
+#include <cmath>
 
 using namespace std;
 
@@ -24,14 +23,15 @@ struct PlayerScore {
 
 vector<PlayerScore> highScores;
 const string HIGHSCORE_FILE = "highscores.txt";
-const int MAX_HIGHSCORES = 5;
+const int MAX_HIGHSCORES = 10;
 
 char playerName[50] = "";
 int playerNameIndex = 0;
 bool inputName = false;
 int finalScore = 0;
-float obstacleSpeed = 2.0;
-int health = 3;
+int obstacleSpeed = 2; // Changed to int
+int health = 3; // Initial health value
+int coinsCollected = 0;
 
 char hab[10][13] = {"hab001_1.png","hab002_1.png","hab003_1.png","hab004_1.png","hab005_1.png",
                      "hab006_1.png","hab007_1.png","hab008_1.png","hab009_1.png","hab010_1.png"};
@@ -42,12 +42,12 @@ char menuBig[5][20] = {"menu_1_big.png","menu_2_big.png","menu_3_big.png","menu_
 
 bool hoverMenu[5] = {false};
 int menuX[5] = {350, 850, 100, 610, 1120};
-int menuY[5] = {220, 200, 20, 20, 20};
+int menuY[5] = {260, 240, 60, 60, 60};
 int menuW = 200, menuH = 200;
 
 Image menuBigImg[5], cloudImg[7], skyImg, heartbreak, menuImg[5], menuImghab, back;
-Image habimgfrm[10], obsimgfrm[3]; 
-Sprite habimg[10], obsimg[3]; 
+Image habimgfrm[10], obsimgfrm[3];
+Sprite habimg[10], obsimg[3];
 
 int gamestate = 0;
 int score = 0, scoretick = 0;
@@ -73,22 +73,39 @@ struct Coin {
 char coinFiles[14][15]; // Stores filenames like "coin1.png", "coin2.png", ...
 Image coinFrames[14];  // Stores the loaded image data for each coin frame
 vector<Coin> coins;    // A dynamic array to manage all coins
-int coinWidth = 0;     // Will be set after loading the first coin image
-int coinHeight = 0;    // Will be set after loading the first coin image
-const int MAX_ACTIVE_COINS = 6; // MODIFIED: Increased to allow 6 coins
-float coinSpeed = 2.5; // How fast coins move downwards
-const int MIN_COIN_SEPARATION = 150; // MODIFIED: Increased for more dispersion
+int coinWidth = 20;    // Will be set after loading the first coin image
+int coinHeight = 20;   // Will be set after loading the first coin image
+const int MAX_ACTIVE_COINS = 4;
+int coinSpeed = 2; // Changed to int and initialized. THIS WILL BE DYNAMIC!
+const int MIN_COIN_SEPARATION = 250;
 
 // --- Hot Air Balloon Dimensions for collision ---
 int habWidth = 0;
 int habHeight = 0;
+
+// --- Back Button Position Constants ---
+const int BACK_BUTTON_X = 1300;
+const int BACK_BUTTON_Y = 740;
+
+// --- Image Declarations ---
+Image healthIcon; // Declared globally
+Image coinCollectIcon; // Declare coin collection icon
+
+// --- Constants for Health Icon Display ---
+const int HEALTH_ICON_START_X = 10;  // Starting X position for the first health icon
+const int HEALTH_ICON_Y = 715;       // Y position for all health icons
+const int HEALTH_ICON_GAP = 5;       // Gap between health icons
 
 // --- Existing Game Functions ---
 void scoreupdate() {
     scoretick++;
     if(scoretick % 9 == 0) {
         score++;
-        obstacleSpeed = 2.0 + (score * 0.025); // Speed increases with score
+        // Increase obstacle speed by 1 when score is a multiple of 10
+        if (score > 0 && score % 10 == 0) {
+            obstacleSpeed += 1; // Increment by integer 1
+            coinSpeed = obstacleSpeed; // Make coin speed match obstacle speed
+        }
     }
 }
 
@@ -126,11 +143,20 @@ void addHighScore(string name, int score) {
 void move() {
     if (isSpecialKeyPressed(GLUT_KEY_RIGHT)) x += 15;
     if (isSpecialKeyPressed(GLUT_KEY_LEFT)) x -= 15;
-    // Wrap around screen horizontally
-    if (x > 1400) x = -habWidth; // Use actual balloon width for wrapping
-    if (x < -habWidth) x = 1400; 
+
+    // --- Corrected Screen Wrapping for Hot Air Balloon ---
+    // If the balloon's right edge goes past the right side of the screen (1400)
+    if (x + habWidth > 1400) {
+        x = 0; // Wrap it to appear immediately at the far left edge of the screen
+    }
+    // If the balloon's left edge goes past the left side of the screen (0)
+    if (x < 0) {
+        x = 1400 - habWidth; // Wrap it to appear immediately at the far right edge of the screen
+    }
+    // --- End Corrected Screen Wrapping ---
+
     // Set the position of the currently displayed sprite frame (bi)
-    iSetSpritePosition(&habimg[bi], x, y); 
+    iSetSpritePosition(&habimg[bi], x, y);
 }
 
 void obstacle() {
@@ -172,7 +198,7 @@ void cldx() { // Cloud horizontal movement
     for (int i = 0; i < 7; i++) {
         *cx[i] += speed[i];
         // Wrap clouds around horizontally
-        if (speed[i] > 0 && *cx[i] > 1450) *cx[i] = -150; 
+        if (speed[i] > 0 && *cx[i] > 1450) *cx[i] = -150;
         else if (speed[i] < 0 && *cx[i] < -150) *cx[i] = 1450;
     }
 }
@@ -202,7 +228,7 @@ bool checkCoinObstacleCollision(int coinLeft, int coinRight, int coinBottom, int
         if (isObsActive[i]) {
             // Get current bounding box of the obstacle
             int obsLeft = obsx[i];
-            int obsRight = obsx[i] + obsimgfrm[obsi[i]].width; 
+            int obsRight = obsx[i] + obsimgfrm[obsi[i]].width;
             int obsBottom = obsy[i];
             int obsTop = obsy[i] + obsimgfrm[obsi[i]].height;
 
@@ -239,28 +265,28 @@ void spawnCoin() {
     const int MAX_SPAWN_RETRIES = 50; // Increased retries for better chance of finding a spot
     for (int retry = 0; retry < MAX_SPAWN_RETRIES; ++retry) {
         // Generate potential X within screen bounds, considering coin width
-        int potentialX = rand() % (1400 - coinWidth); 
+        int potentialX = rand() % (1400 - coinWidth);
         // Generate potential Y above the screen, staggered, to give coins time to separate
-        int potentialY = 800 + (rand() % 400); // MODIFIED: Increased vertical spawn range
+        int potentialY = 800 + (rand() % 400);
 
-        int coinLeft = potentialX;
-        int coinRight = potentialX + coinWidth;
-        int coinBottom = potentialY;
-        int coinTop = potentialY + coinHeight;
+        int currentCoinLeft = potentialX;
+        int currentCoinRight = potentialX + coinWidth;
+        int currentCoinBottom = potentialY;
+        int currentCoinTop = potentialY + coinHeight;
 
         // Check for collision with obstacles first
-        if (checkCoinObstacleCollision(coinLeft, coinRight, coinBottom, coinTop)) {
+        if (checkCoinObstacleCollision(currentCoinLeft, currentCoinRight, currentCoinBottom, currentCoinTop)) {
             continue; // Retry if it collides with an obstacle
         }
 
         // --- NEW: Check for collision/proximity with other active coins ---
         bool overlapsWithOtherCoins = false;
         for (size_t i = 0; i < coins.size(); ++i) {
-            if (coins[i].active && i != coinIdx) { // Only check active coins, but not itself
+            if (coins[i].active && i != (size_t)coinIdx) {
                 // Calculate distance between centers. Using squared distance for performance.
                 double distSq = pow((potentialX + coinWidth / 2.0) - (coins[i].x + coinWidth / 2.0), 2) +
-                                pow((potentialY + coinHeight / 2.0) - (coins[i].y + coinHeight / 2.0), 2);
-                
+                                 pow((potentialY + coinHeight / 2.0) - (coins[i].y + coinHeight / 2.0), 2);
+
                 // Compare with squared MIN_COIN_SEPARATION
                 if (distSq < pow(MIN_COIN_SEPARATION, 2)) {
                     overlapsWithOtherCoins = true;
@@ -277,10 +303,10 @@ void spawnCoin() {
         // If no obstacle or coin overlap, this position is good
         newCoin.x = potentialX;
         newCoin.y = potentialY;
-        newCoin.currentFrame = rand() % 14; 
+        newCoin.currentFrame = rand() % 14;
         newCoin.active = true;
         positionFound = true;
-        break; 
+        break;
     }
 
     if (!positionFound) {
@@ -293,7 +319,7 @@ void coinMovement() {
     int activeCoinCount = 0;
     for (size_t i = 0; i < coins.size(); ++i) {
         if (coins[i].active) {
-            coins[i].y -= coinSpeed; // Move coin downwards
+            coins[i].y -= coinSpeed; // Move coin downwards using the dynamic speed
 
             if (coins[i].y < -coinHeight) { // Coin went completely off-screen
                 coins[i].active = false; // Deactivate it
@@ -304,7 +330,7 @@ void coinMovement() {
 
     // Try to spawn a new coin if there are fewer than MAX_ACTIVE_COINS,
     // and a random chance (e.g., 5% per call) allows it.
-    if (activeCoinCount < MAX_ACTIVE_COINS && (rand() % 100) < 5) { 
+    if (activeCoinCount < MAX_ACTIVE_COINS && (rand() % 100) < 5) {
         spawnCoin();
     }
 }
@@ -324,18 +350,18 @@ void iDraw() {
 
     if (gamestate == 0) {
         // Main menu
-        iShowLoadedImage(50, 530, &menuImghab);
+        iShowLoadedImage(500, 530, &menuImghab);
         for (int i = 0; i < 5; i++) {
-            if (hoverMenu[i]) 
+            if (hoverMenu[i])
                 iShowLoadedImage(menuX[i] - 10, menuY[i] - 10, &menuBigImg[i]);
-            else 
+            else
                 iShowLoadedImage(menuX[i], menuY[i], &menuImg[i]);
         }
     }
     else if (gamestate == 1) {
         // Gameplay
         // We draw the *current* frame of the balloon sprite
-        iShowSprite(&habimg[bi]); 
+        iShowSprite(&habimg[bi]);
 
         // For collision, use the global x, y, habWidth, habHeight that track the balloon's position and size
         int habLeft = x;
@@ -347,9 +373,9 @@ void iDraw() {
         for (int i = 0; i < 3; i++) {
             if (isObsActive[i]) {
                 iShowSprite(&obsimg[i]);
-                
+
                 // Player-Obstacle Collision using iCheckCollision for sprites
-                if (iCheckCollision(&habimg[bi], &obsimg[i])) { 
+                if (iCheckCollision(&habimg[bi], &obsimg[i])) {
                     showHeartbreak = true;
                     heartbreakCounter = 60; // Show heartbreak for 60 frames (approx 1 sec at 60 FPS)
                     iPauseSound(easy); // Pause background music
@@ -384,6 +410,7 @@ void iDraw() {
                     habBottom < coinTop && habTop > coinBottom) {
                     // Collision with coin!
                     score += 10; // Increase score for collecting a coin
+                    coinsCollected++; // Increment coinsCollected
                     coins[i].active = false; // Deactivate the collected coin
                     iPlaySound("coin.wav", false, 80); // Play coin collection sound (requires coin.wav)
                 }
@@ -393,7 +420,10 @@ void iDraw() {
 
         // Display heartbreak image briefly after collision
         if (showHeartbreak) {
-            iShowLoadedImage(200, 400, &heartbreak);
+            // Calculate center position for heartbreak image
+            int heartbreakX = (1400 - heartbreak.width) / 2; // Screen width 1400
+            int heartbreakY = (800 - heartbreak.height) / 2; // Screen height 800
+            iShowLoadedImage(heartbreakX, heartbreakY, &heartbreak);
             if (--heartbreakCounter <= 0) // Decrement counter, hide when 0 or less
                 showHeartbreak = false;
         }
@@ -401,55 +431,131 @@ void iDraw() {
         // Display game stats
         char str[30];
         sprintf(str, "Score: %d", score);
-        iText(10, 760, str, GLUT_BITMAP_HELVETICA_18);
-        sprintf(str, "Speed: %.2f", obstacleSpeed);
-        iText(10, 740, str, GLUT_BITMAP_HELVETICA_18);
-        char lifeStr[20];
-        sprintf(lifeStr, "Lives: %d", health);
-        iText(10, 720, lifeStr, GLUT_BITMAP_HELVETICA_18);
+        iText(10, 770, str, GLUT_BITMAP_HELVETICA_18);
+        sprintf(str, "Speed: %d", obstacleSpeed); // Display as int
+        iText(10, 750, str, GLUT_BITMAP_HELVETICA_18);
+        
+        // --- MODIFIED: Display Multiple Health Icons ---
+        for (int i = 0; i < health; ++i) {
+            int currentIconX = HEALTH_ICON_START_X + (healthIcon.width + HEALTH_ICON_GAP) * i;
+            iShowLoadedImage(currentIconX, HEALTH_ICON_Y, &healthIcon);
+        }
+        // --- END MODIFIED ---
+
+        // Display Coin Icon and Coins Collected Value
+        iShowLoadedImage(10, 680, &coinCollectIcon); // Position the coin icon below health
+        char coinCountStr[30]; // Buffer for coins collected number
+        sprintf(coinCountStr, "%d", coinsCollected); // Just the number
+        iText(10 + coinCollectIcon.width + 5, 685, coinCountStr, GLUT_BITMAP_HELVETICA_18); // Position number next to icon
+
+        // Show Back button in gameplay
+        iShowLoadedImage(BACK_BUTTON_X, BACK_BUTTON_Y, &back);
     }
     else if (gamestate == 3) {
         // Name input screen
-        iSetColor(255, 255, 255);
-        iText(100, 400, "Enter Your Name:", GLUT_BITMAP_HELVETICA_18);
-        iText(100, 370, playerName, GLUT_BITMAP_HELVETICA_18);
-        iText(100, 300, "Press ENTER to start the game.", GLUT_BITMAP_HELVETICA_18);
+        iSetColor(0, 0, 255); // Blue color
+
+        // Centering "Enter Your Name:"
+        // Estimated x for centering 'Enter Your Name:'
+        int enterNameX = (1400 - 200) / 2; // Adjusted for visual centering on a 1400px width
+        iText(enterNameX, 400, "Enter Your Name:", GLUT_BITMAP_TIMES_ROMAN_24);
+
+        // Player name input display - adjust for centering
+        // This is a basic estimation. For more precise centering,
+        // you'd typically need to measure the string's pixel width.
+        int playerNameDisplayX = (1400 - (playerNameIndex * 12)) / 2; // Rough estimate: 12px per char
+        iText(playerNameDisplayX, 370, playerName, GLUT_BITMAP_HELVETICA_18);
+
+        // Centering "Press ENTER to start the game."
+        // Estimated x for centering 'Press ENTER to start the game.'
+        
+        iText(560, 300, "Press ENTER to start the game.", GLUT_BITMAP_HELVETICA_18);
+
+        // Show Back button
+        iShowLoadedImage(BACK_BUTTON_X, BACK_BUTTON_Y, &back);
     }
     else if (gamestate == 4) {
         // About screen
         iShowImage(0, 0, "aboutus.PNG"); // Ensure aboutus.PNG exists
+
+        // Show Back button
+        iShowLoadedImage(BACK_BUTTON_X, BACK_BUTTON_Y, &back);
     }
     else if (gamestate == 6) {
         // Game Over screen
-        iSetColor(255, 255, 255); // Set color for text
-        iText(150, 450, "Game Over", GLUT_BITMAP_HELVETICA_18);
+        char gameOverStr[] = "GAME OVER";
         char finalScoreStr[50];
-        sprintf(finalScoreStr, "Final Score: %d", finalScore);
-        iText(150, 420, finalScoreStr, GLUT_BITMAP_HELVETICA_18);
+        sprintf(finalScoreStr, "FINAL SCORE: %d", finalScore);
+        char collectedCoinsGameOverStr[50];
+        sprintf(collectedCoinsGameOverStr, "COINS COLLECTED: %d", coinsCollected);
+
+        // Calculate center positions for text
+        int screenWidth = 1400; // Assuming your window width is 1400
+        int screenHeight = 800; // Assuming your window height is 800
+
+        // Game Over Text
+        iSetColor(255, 0, 0); // Red color for Game Over
+        // Approximate center based on visual testing for GLUT_BITMAP_TIMES_ROMAN_24
+        int gameOverX = (screenWidth - 150) / 2;
+        int gameOverY = screenHeight / 2 + 50; // Above center
+        iText(gameOverX, gameOverY, gameOverStr, GLUT_BITMAP_TIMES_ROMAN_24);
+
+        // Final Score Text
+        iSetColor(0, 0, 255); // Blue color for Final Score
+        int finalScoreX = (screenWidth - 250) / 2; // Approximate center
+        int finalScoreY = screenHeight / 2; // Center
+        iText(finalScoreX, finalScoreY, finalScoreStr, GLUT_BITMAP_TIMES_ROMAN_24);
+
+        // Coins Collected Text (also blue), displayed below Final Score
+        int coinsCollectedX = (screenWidth - 300) / 2;
+        int coinsCollectedY = screenHeight / 2 - 50; // Below Final Score
+        iText(coinsCollectedX, coinsCollectedY, collectedCoinsGameOverStr, GLUT_BITMAP_TIMES_ROMAN_24);
 
         // Show Back button to return to main menu
-        iShowLoadedImage(420, 740, &back);
+        iShowLoadedImage(BACK_BUTTON_X, BACK_BUTTON_Y, &back);
     }
     else if (gamestate == 2) {
         // High Scores screen
-        iSetColor(255, 255, 255);
-        iText(180, 700, "High Scores", GLUT_BITMAP_HELVETICA_18);
-        int startY = 650;
+        iSetColor(255, 255, 255); // Default to White for "High Scores" title
+
+        // Center "High Scores" title
+        int highScoreTitleTextWidth = 150; // Estimated width for "High Scores" with HELVETICA_18
+        int highScoreTitleX = (1400 - highScoreTitleTextWidth) / 2;
+        iText(highScoreTitleX, 700, "High Scores", GLUT_BITMAP_HELVETICA_18);
+
+        int startY = 650; // Starting Y for the first score entry
         for (size_t i = 0; i < highScores.size(); i++) {
             char scoreLine[100];
-            // Replace underscores back to spaces for display, if desired (optional)
             string displayName = highScores[i].name;
-            for(char &c : displayName) if (c == '_') c = ' '; 
+            for(char &c : displayName) if (c == '_') c = ' '; // Replace underscores back to spaces for display
+
             sprintf(scoreLine, "%d. %s - %d", (int)(i+1), displayName.c_str(), highScores[i].score);
-            iText(150, startY - i * 30, scoreLine, GLUT_BITMAP_HELVETICA_18);
+
+            // Set color based on rank
+            if (i == 0) { // First place
+                iSetColor(255, 0, 0); // Red
+            } else if (i == 1) { // Second place
+                iSetColor(0, 255, 0); // Green
+            } else if (i == 2) { // Third place
+                iSetColor(0, 0, 255); // Blue
+            } else { // Rest of the players
+                iSetColor(255, 255, 255); // White
+            }
+
+            // Estimate the width of the dynamic score line
+            // This is an approximation. A common character width for GLUT_BITMAP_HELVETICA_18 is around 10-11 pixels.
+            // Adjust `estimatedLineLength` based on your longest possible score line (e.g., "5. LongPlayerName - 99999" could be around 25-30 characters).
+            int estimatedLineLength = 30; // Max estimated characters in a score line
+            int charWidthEstimate = 10;   // Estimated average pixel width per character for GLUT_BITMAP_HELVETICA_18
+            int scoreLinePixelWidth = estimatedLineLength * charWidthEstimate;
+
+            // Calculate centered X position for the current score line
+            int centeredScoreLineX = (1400 - scoreLinePixelWidth) / 2;
+
+            iText(centeredScoreLineX, startY - i * 30, scoreLine, GLUT_BITMAP_HELVETICA_18);
         }
         // Back button to return to main menu
-        iShowLoadedImage(420, 740, &back);
-    }
-
-    // Show Back button on other screens (except main menu and game over, which has its own)
-    if (gamestate > 0 && gamestate <= 5 && gamestate != 6) {
-        iShowLoadedImage(420, 740, &back);
+        iShowLoadedImage(BACK_BUTTON_X, BACK_BUTTON_Y, &back);
     }
 }
 
@@ -500,7 +606,7 @@ void iMouse(int button, int state, int mx, int my)
             }
             else if(mx >= 100 && mx <= (100+190)&& my >= 20 && my <= (20+268)) // Help button (placeholder)
             {
-                 // No action defined for Help yet
+                    // No action defined for Help yet
             }
             else if(mx >= 610 && mx <= (610+190) && my >= 20 && my <=288) // About button
             {
@@ -511,18 +617,18 @@ void iMouse(int button, int state, int mx, int my)
                 exit(0); // Terminate the program
             }
         }
-        // Handle back button clicks for all screens except main menu
-        if ((gamestate >= 1 && gamestate <= 5) || gamestate == 6) // All game states where back button exists
+        // --- Back button click handling ---
+        // Apply this logic to ALL game states where the back button should be clickable.
+        if (gamestate == 1 || gamestate == 2 || gamestate == 3 || gamestate == 4 || gamestate == 6)
         {
-            // Assuming back button is approx 100x60 at 420, 740
-            if(mx >= 420 && mx <= 420 + 100 && my >= 740 && my <= 740 + 60) 
+            // Use the consistent position and actual image dimensions for click detection
+            if(mx >= BACK_BUTTON_X && mx <= BACK_BUTTON_X + back.width &&
+               my >= BACK_BUTTON_Y && my <= BACK_BUTTON_Y + back.height)
             {
                 gamestate = 0; // Return to main menu
                 iPauseSound(easy); // Pause game music if playing
-                // Game music will be restarted when a new game begins (in iKeyboard)
             }
         }
-            
     }
 }
 
@@ -552,7 +658,9 @@ void iKeyboard(unsigned char key)
             score = 0;
             scoretick = 0;
             health = 3;
-            obstacleSpeed = 2.0;
+            coinsCollected = 0; // Reset coinsCollected on new game
+            obstacleSpeed = 2; // Reset speed to initial integer value
+            coinSpeed = obstacleSpeed; // Reset coin speed as well
 
             // Reset obstacles
             for (int i = 0; i < 3; i++) {
@@ -563,7 +671,7 @@ void iKeyboard(unsigned char key)
                 iChangeSpriteFrames(&obsimg[i], &obsimgfrm[obsi[i]], 1);
                 iSetSpritePosition(&obsimg[i], obsx[i], obsy[i]);
             }
-            
+
             // Reset and spawn initial coins
             for (size_t i = 0; i < coins.size(); ++i) {
                 coins[i].active = false; // Deactivate all existing coins
@@ -594,28 +702,28 @@ int main(int argc, char *argv[])
     glutInit(&argc, argv);
     srand(time(0)); // Seed the random number generator using current time
 
-    // --- Prepare and Load Coin Image Files ---
+    // --- Prepare and Load Coin Image Files (for rotating animation) ---
     for(int i = 0; i < 14; ++i) {
         sprintf(coinFiles[i], "coin%d.png", i + 1); // Generates "coin1.png", "coin2.png", etc.
     }
     for(int i = 0; i < 14; ++i) {
         iLoadImage(&coinFrames[i], coinFiles[i]);
-        // Resize each coin frame to your desired dimensions (e.g., 50x50 pixels)
-        iResizeImage(&coinFrames[i], 50, 50); 
+        // Resize each coin frame to your desired dimensions (e.g., 30x30 pixels for collected coins)
+        iResizeImage(&coinFrames[i], 30, 30); // These are the coins that move on screen
     }
     // Get coin dimensions from the first loaded image (now it will be the resized dimension)
     if (14 > 0) {
-        coinWidth = coinFrames[0].width; 
+        coinWidth = coinFrames[0].width;
         coinHeight = coinFrames[0].height;
     }
-    // --- End Coin Loading ---
+    // --- End Coin Loading for animated coins ---
 
 
     // Load obstacle images
     for(int i = 0; i < 3; i++) {
         iLoadImage(&obsimgfrm[i], obs[i]);
     }
-    
+
     // Load hot air balloon animation frames
     for(int j=0;j<10;j++)
     {
@@ -629,12 +737,12 @@ int main(int argc, char *argv[])
     }
 
     // Initialize all hot air balloon sprites (one for each frame)
-    for (int j = 0; j < 10; ++j) { 
+    for (int j = 0; j < 10; ++j) {
         iInitSprite(&habimg[j]);
         iChangeSpriteFrames(&habimg[j], &habimgfrm[j], 1); // Set initial frame
         iSetSpritePosition(&habimg[j], x, y); // Set initial position
     }
-    
+
     loadHighScores(); // Load high scores at startup
 
     // Initialize obstacle sprites and their initial random positions
@@ -649,7 +757,7 @@ int main(int argc, char *argv[])
 
     // Load cloud images
     for (int i = 0; i < 7; i++) {
-        iLoadImage(&cloudImg[i], cloud[i]); 
+        iLoadImage(&cloudImg[i], cloud[i]);
     }
 
     // Load menu images (normal and hovered states)
@@ -659,26 +767,36 @@ int main(int argc, char *argv[])
         iLoadImage(&menuBigImg[i], menuBig[i]);
     }
     iLoadImage(&menuImghab, "menuhab.png"); // Menu title image
-    iLoadImage(&skyImg, "sky.jpg");         // Background sky image
+    iLoadImage(&skyImg, "sky.jpg");        // Background sky image
     iLoadImage(&heartbreak, "heartbreak.png"); // Collision feedback image
     iLoadImage(&back, "backbutton.png");    // Back button image
-    
+
+    // --- Load and Resize Health Icon ---
+    iLoadImage(&healthIcon, "Healthicon.png");
+    iResizeImage(&healthIcon, 30, 30); // Set the desired size for the health icon
+    // --- End Health Icon ---
+
+    // --- NEW: Load and Resize Coin Collection Icon (for HUD) ---
+    iLoadImage(&coinCollectIcon, "Coinicon.png"); // Load the Coinicon.png file (was .jpg)
+    iResizeImage(&coinCollectIcon, 30, 30); // Resize it to 30x30 pixels
+    // --- END NEW ---
+
     // Set up game timers for continuous updates
-    iSetTimer(500,incmnt);      // Balloon animation
-    iSetTimer(16,cldx);         // Cloud horizontal movement
-    iSetTimer(16,cldy);         // Cloud vertical movement
-    iSetTimer(1, move);         // Player balloon movement (highly frequent for responsiveness)
-    iSetTimer(16,obstacle);     // Obstacle movement and regeneration
-    iSetTimer(33,scoreupdate);  // Score update and speed increase
-    
+    iSetTimer(500,incmnt);       // Balloon animation
+    iSetTimer(16,cldx);          // Cloud horizontal movement
+    iSetTimer(16,cldy);          // Cloud vertical movement
+    iSetTimer(1, move);          // Player balloon movement (highly frequent for responsiveness)
+    iSetTimer(16,obstacle);      // Obstacle movement and regeneration
+    iSetTimer(33,scoreupdate);   // Score update and speed increase
+
     // Coin timers
     iSetTimer(50, coinAnimate); // Coin rotation animation (change frame every 50ms)
     iSetTimer(16, coinMovement); // Coin movement and spawning logic (move every 16ms)
 
     iInitializeSound(); // Initialize sound system
-    
+
     // Initialize the game window and start the main loop
-    iInitialize(1400, 800, "Hot Air Balloon"); 
-    
+    iInitialize(1400, 800, "Hot Air Balloon");
+
     return 0;
 }
