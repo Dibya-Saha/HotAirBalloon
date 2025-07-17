@@ -36,7 +36,7 @@ int health = 3;        // Initial health value
 int coinsCollected = 0;
 
 char hab[10][13] = {"hab001_1.png", "hab002_1.png", "hab003_1.png", "hab004_1.png", "hab005_1.png",
-                    "hab006_1.png", "hab007_1.png", "hab008_1.png", "hab009_1.png", "hab010_1.png"};
+                     "hab006_1.png", "hab007_1.png", "hab008_1.png", "hab009_1.png", "hab010_1.png"};
 char obs[3][10] = {"obs1.png", "obs2.png", "obs3.png"};
 char cloud[7][13] = {"cloud1.png", "cloud2.png", "cloud3.png", "cloud4.png", "cloud5.png", "cloud6.png", "cloud7.png"};
 char menu[5][15] = {"menu_1.png", "menu_2.png", "menu_3.png", "menu_4.png", "menu_5.png"};
@@ -53,10 +53,10 @@ Sprite habimg[10], obsimg[3];
 
 int gamestate = 0;
 int score = 0, scoretick = 0;
-int bi = 0;                               // Current frame index for hot air balloon animation
-int obsx[3], obsy[3], obsi[3];            // X, Y, and image index for obstacles
-int x = 700, y = 70;                      // Player balloon position (for habimg[bi] sprite)
-int easy;                                 // Sound handle for background music
+int bi = 0;                          // Current frame index for hot air balloon animation
+int obsx[3], obsy[3], obsi[3];       // X, Y, and image index for obstacles
+int x = 700, y = 70;                 // Player balloon position (for habimg[bi] sprite)
+int easy;                            // Sound handle for background music
 bool isObsActive[3] = {true, true, true}; // Track if an obstacle is active for collision
 bool showHeartbreak = false;
 int heartbreakCounter = 0; // Timer for heartbreak image display
@@ -103,6 +103,21 @@ const int HEALTH_ICON_GAP = 5;      // Gap between health icons
 int lastSpeedUpScore50 = 0;
 int lastSpeedUpScore100 = 0;
 
+// --- Health Item Data Structures (NEW) ---
+struct HealthItem {
+    int x, y;
+    bool active; // Is this health item currently on screen and interactable?
+};
+
+HealthItem currentHealthItem; // We'll only track one at a time
+Image healthItemImage;       // Stores the loaded health item image
+int healthItemWidth = 0;     // Will be set after loading
+int healthItemHeight = 0;    // Will be set after loading
+const int MAX_HEALTH = 3;    // Define the maximum health
+int healthItemSpawnDelay = 0; // Timer to control health item spawning
+const int HEALTH_ITEM_SPAWN_INTERVAL = 3000; // milliseconds before attempting to spawn another
+
+
 void scoreupdate()
 {
     scoretick++;
@@ -132,9 +147,9 @@ void scoreupdate()
         }
 
         // Finally, apply the maximum speed limit
-        if (obstacleSpeed > 20)
+        if (obstacleSpeed > 30)
         {
-            obstacleSpeed = 20;
+            obstacleSpeed = 30;
         }
 
         // Keep coin speed in sync with obstacle speed
@@ -193,7 +208,7 @@ void move()
     {
         x = 0; // Wrap it to appear immediately at the far left edge of the screen
     }
-  
+ 
     if (x < 0)
     {
         x = 1400 - habWidth; // Wrap it to appear immediately at the far right edge of the screen
@@ -210,16 +225,16 @@ void obstacle()
         { // Only move active obstacles
             obsy[i] -= obstacleSpeed;
             if (obsy[i] < -obsimgfrm[obsi[i]].height)
-            {                                                            // Check if obstacle is completely off-screen
-                obsy[i] = 800;                                           // Reset to top
-                obsx[i] = rand() % (1400 - obsimgfrm[obsi[i]].width);    // Random X within window width
-                obsi[i] = rand() % 3;                                    // Random obstacle image
+            {                                                              // Check if obstacle is completely off-screen
+                obsy[i] = 800;                                             // Reset to top
+                obsx[i] = rand() % (1400 - obsimgfrm[obsi[i]].width);      // Random X within window width
+                obsi[i] = rand() % 3;                                      // Random obstacle image
                 iChangeSpriteFrames(&obsimg[i], &obsimgfrm[obsi[i]], 1); // Update sprite frame
             }
             iSetSpritePosition(&obsimg[i], obsx[i], obsy[i]); // Update sprite position
         }
         else
-        {                             // Obstacle is inactive (e.g., just collided)
+        {                                    // Obstacle is inactive (e.g., just collided)
             obsy[i] -= obstacleSpeed; // Still move it off-screen
             if (obsy[i] < -obsimgfrm[obsi[i]].height)
             { // Once off-screen, reactivate and reset
@@ -235,7 +250,7 @@ void obstacle()
 }
 
 void incmnt()
-{                       // Hot air balloon animation
+{                                // Hot air balloon animation
     bi = (bi + 1) % 10; // Cycle through 10 frames
  
     iChangeSpriteFrames(&habimg[bi], &habimgfrm[bi], 1);
@@ -325,7 +340,7 @@ void spawnCoin()
         coinIdx = coins.size() - 1;
     }
     else if (coinIdx == -1)
-    {           // No inactive coins and already at max capacity
+    {            // No inactive coins and already at max capacity
         return; // Cannot spawn more coins right now
     }
 
@@ -375,7 +390,6 @@ void spawnCoin()
             continue; // Retry if it overlaps or is too close to another coin
         }
         
-
         // If no obstacle or coin overlap, this position is good
         newCoin.x = potentialX;
         newCoin.y = potentialY;
@@ -402,7 +416,7 @@ void coinMovement()
             coins[i].y -= coinSpeed; // Move coin downwards using the dynamic speed
 
             if (coins[i].y < -coinHeight)
-            {                            // Coin went completely off-screen
+            {                                // Coin went completely off-screen
                 coins[i].active = false; // Deactivate it
             }
             activeCoinCount++; // Count active coins
@@ -415,6 +429,91 @@ void coinMovement()
         spawnCoin();
     }
 }
+
+// --- Health Item Functions (NEW) ---
+
+// Checks if a potential health item position overlaps with any active obstacle or coin
+bool checkHealthItemCollision(int itemLeft, int itemRight, int itemBottom, int itemTop) {
+    // Check collision with obstacles
+    for (int i = 0; i < 3; ++i) {
+        if (isObsActive[i]) {
+            int obsLeft = obsx[i];
+            int obsRight = obsx[i] + obsimgfrm[obsi[i]].width;
+            int obsBottom = obsy[i];
+            int obsTop = obsy[i] + obsimgfrm[obsi[i]].height;
+
+            if (itemLeft < obsRight && itemRight > obsLeft &&
+                itemBottom < obsTop && itemTop > obsBottom) {
+                return true; // Collision with obstacle
+            }
+        }
+    }
+
+    // Check collision with active coins
+    for (size_t i = 0; i < coins.size(); ++i) {
+        if (coins[i].active) {
+            int coinLeft = coins[i].x;
+            int coinRight = coins[i].x + coinWidth;
+            int coinBottom = coins[i].y;
+            int coinTop = coins[i].y + coinHeight;
+
+            if (itemLeft < coinRight && itemRight > coinLeft &&
+                itemBottom < coinTop && coinTop > coinBottom) {
+                return true; // Collision with coin
+            }
+        }
+    }
+    return false; // No collision
+}
+
+// Spawns a health item if one isn't active and health isn't full
+void spawnHealthItem() {
+    if (!currentHealthItem.active && health < MAX_HEALTH) { // Only spawn if inactive and health isn't full
+        bool positionFound = false;
+        const int MAX_SPAWN_RETRIES = 50;
+
+        for (int retry = 0; retry < MAX_SPAWN_RETRIES; ++retry) {
+            int potentialX = rand() % (1400 - healthItemWidth);
+            int potentialY = 800 + (rand() % 400); // Staggered above screen
+
+            int itemLeft = potentialX;
+            int itemRight = potentialX + healthItemWidth;
+            int itemBottom = potentialY;
+            int itemTop = potentialY + healthItemHeight;
+
+            if (!checkHealthItemCollision(itemLeft, itemRight, itemBottom, itemTop)) {
+                currentHealthItem.x = potentialX;
+                currentHealthItem.y = potentialY;
+                currentHealthItem.active = true;
+                positionFound = true;
+                break;
+            }
+        }
+        if (!positionFound) {
+            currentHealthItem.active = false; // Failed to find a spot, keep inactive
+        }
+    }
+}
+
+// Moves active health item downwards and handles off-screen items
+void healthItemMovement() {
+    if (currentHealthItem.active) {
+        currentHealthItem.y -= coinSpeed; // Use coinSpeed for consistency
+
+        if (currentHealthItem.y < -healthItemHeight) {
+            currentHealthItem.active = false; // Deactivate if off-screen
+            healthItemSpawnDelay = HEALTH_ITEM_SPAWN_INTERVAL; // Reset delay for next spawn attempt
+        }
+    } else {
+        // If inactive, count down to next spawn attempt
+        healthItemSpawnDelay -= 16; // Decrement by timer interval (e.g., 16ms)
+        if (healthItemSpawnDelay <= 0) {
+            spawnHealthItem();
+            healthItemSpawnDelay = HEALTH_ITEM_SPAWN_INTERVAL; // Reset delay after attempt
+        }
+    }
+}
+
 
 void iDraw()
 {
@@ -464,11 +563,11 @@ void iDraw()
                 if (iCheckCollision(&habimg[bi], &obsimg[i]))
                 {
                     showHeartbreak = true;
-                    heartbreakCounter = 60;             // Show heartbreak for 60 frames (approx 1 sec at 60 FPS)
-                    iPauseSound(easy);                  // Pause background music
+                    heartbreakCounter = 60;          // Show heartbreak for 60 frames (approx 1 sec at 60 FPS)
+                    iPauseSound(easy);               // Pause background music
                     iPlaySound("wrong.wav", false, 80); // Play collision sound
-                    health--;                           // Decrease health
-                    isObsActive[i] = false;             // Deactivate this specific obstacle after collision
+                    health--;                        // Decrease health
+                    isObsActive[i] = false;          // Deactivate this specific obstacle after collision
 
                     if (health <= 0)
                     {
@@ -502,14 +601,37 @@ void iDraw()
                     habBottom < coinTop && habTop > coinBottom)
                 {
                     // Collision with coin!
-                    score += 10;                       // Increase score for collecting a coin
-                    coinsCollected++;                  // Increment coinsCollected
-                    coins[i].active = false;           // Deactivate the collected coin
+                    score += 10;                     // Increase score for collecting a coin
+                    coinsCollected++;                // Increment coinsCollected
+                    coins[i].active = false;         // Deactivate the collected coin
                     iPlaySound("coin.wav", false, 80); // Play coin collection sound (requires coin.wav)
                 }
             }
         }
     
+        // --- Health Item Drawing and Player-Health Item Collision (NEW) ---
+        if (currentHealthItem.active) {
+            iShowLoadedImage(currentHealthItem.x, currentHealthItem.y, &healthItemImage);
+
+            // Player-Health Item Collision (AABB check)
+            int healthItemLeft = currentHealthItem.x;
+            int healthItemRight = currentHealthItem.x + healthItemWidth;
+            int healthItemBottom = currentHealthItem.y;
+            int healthItemTop = currentHealthItem.y + healthItemHeight;
+
+            if (habLeft < healthItemRight && habRight > healthItemLeft &&
+                habBottom < healthItemTop && habTop > healthItemBottom) {
+                // Collision with health item!
+                if (health < MAX_HEALTH) { // Only increase health if not at max
+                    health++;
+                    iPlaySound("health_pickup.wav", false, 80); // Play a health pickup sound (you'll need this file)
+                }
+                currentHealthItem.active = false; // Deactivate the collected health item
+                healthItemSpawnDelay = HEALTH_ITEM_SPAWN_INTERVAL; // Reset delay for next spawn
+            }
+        }
+
+
         if (showHeartbreak)
         {
             // Calculate center position for heartbreak image
@@ -534,9 +656,9 @@ void iDraw()
             iShowLoadedImage(currentIconX, HEALTH_ICON_Y, &healthIcon);
         }
       
-        iShowLoadedImage(10, 680, &coinCollectIcon);                                        // Position the coin icon below health
-        char coinCountStr[30];                                                              // Buffer for coins collected number
-        sprintf(coinCountStr, "%d", coinsCollected);                                        // Just the number
+        iShowLoadedImage(10, 680, &coinCollectIcon);                           // Position the coin icon below health
+        char coinCountStr[30];                                                  // Buffer for coins collected number
+        sprintf(coinCountStr, "%d", coinsCollected);                            // Just the number
         iText(10 + coinCollectIcon.width + 5, 685, coinCountStr, GLUT_BITMAP_HELVETICA_18); // Position number next to icon
 
    
@@ -590,7 +712,7 @@ void iDraw()
         iText(gameOverX, gameOverY, gameOverStr, GLUT_BITMAP_TIMES_ROMAN_24);
 
         // Final Score Text
-        iSetColor(0, 0, 255);                      // Blue color for Final Score
+        iSetColor(0, 0, 255);           // Blue color for Final Score
         int finalScoreX = (screenWidth - 250) / 2; // Approximate center
         int finalScoreY = screenHeight / 2;        // Center
         iText(finalScoreX, finalScoreY, finalScoreStr, GLUT_BITMAP_TIMES_ROMAN_24);
@@ -722,7 +844,7 @@ void iMouse(int button, int state, int mx, int my)
             if (mx >= BACK_BUTTON_X && mx <= BACK_BUTTON_X + back.width &&
                 my >= BACK_BUTTON_Y && my <= BACK_BUTTON_Y + back.height)
             {
-                gamestate = 0;     // Return to main menu
+                gamestate = 0;      // Return to main menu
                 iPauseSound(easy); // Pause game music if playing
             }
         }
@@ -753,7 +875,7 @@ void iKeyboard(unsigned char key)
         else if (key == '\r' || key == '\n')
         { // Enter key to confirm name
             inputName = false;
-            gamestate = 1;                           // Start the game
+            gamestate = 1;                         // Start the game
             easy = iPlaySound("Easy.wav", true, 80); // Start game background music
 
             // Reset game values for a fresh start
@@ -767,7 +889,7 @@ void iKeyboard(unsigned char key)
             // Reset obstacles
             for (int i = 0; i < 3; i++)
             {
-                obsy[i] = 800 + i * 267;                              // Place off-screen at top
+                obsy[i] = 800 + i * 267;                       // Place off-screen at top
                 obsx[i] = rand() % (1400 - obsimgfrm[obsi[i]].width); // Random X
                 obsi[i] = rand() % 3;
                 isObsActive[i] = true;
@@ -785,6 +907,10 @@ void iKeyboard(unsigned char key)
             {
                 spawnCoin();
             }
+
+            // Reset health item state for a fresh start (NEW)
+            currentHealthItem.active = false;
+            healthItemSpawnDelay = HEALTH_ITEM_SPAWN_INTERVAL; // Reset initial delay for health item
         }
         else if (playerNameIndex < (int)sizeof(playerName) - 1)
         { // Add character if space available
@@ -816,7 +942,7 @@ int main(int argc, char *argv[])
     for (int i = 0; i < 14; ++i)
     {
         iLoadImage(&coinFrames[i], coinFiles[i]);
-  
+ 
         iResizeImage(&coinFrames[i], 30, 30); // These are the coins that move on screen
     }
    
@@ -854,14 +980,14 @@ int main(int argc, char *argv[])
 
     loadHighScores(); // Load high scores at startup
 
-  
+ 
     for (int i = 0; i < 3; i++)
     {
         iInitSprite(&obsimg[i]);
         obsi[i] = rand() % 3; // Randomly select an obstacle image
         iChangeSpriteFrames(&obsimg[i], &obsimgfrm[obsi[i]], 1);
         obsx[i] = rand() % (1400 - obsimgfrm[obsi[i]].width); // Random X within window width
-        obsy[i] = 800 + i * 267;                              // Start above the screen, staggered
+        obsy[i] = 800 + i * 267;                            // Start above the screen, staggered
         iSetSpritePosition(&obsimg[i], obsx[i], obsy[i]);
     }
 
@@ -877,20 +1003,32 @@ int main(int argc, char *argv[])
         iLoadImage(&menuImg[i], menu[i]);
         iLoadImage(&menuBigImg[i], menuBig[i]);
     }
-    iLoadImage(&menuImghab, "menuhab.png");    // Menu title image
-    iLoadImage(&skyImg, "sky.jpg");            // Background sky image
+    iLoadImage(&menuImghab, "menuhab.png");      // Menu title image
+    iLoadImage(&skyImg, "sky.jpg");             // Background sky image
     iLoadImage(&heartbreak, "heartbreak.png"); // Collision feedback image
     iLoadImage(&back, "backbutton.png");       // Back button image
 
 
     iLoadImage(&healthIcon, "Healthicon.png");
     iResizeImage(&healthIcon, 30, 30); // Set the desired size for the health icon
-  
+ 
 
    
     iLoadImage(&coinCollectIcon, "Coinicon.png"); // Load the Coinicon.png file (was .jpg)
-    iResizeImage(&coinCollectIcon, 30, 30);       // Resize it to 30x30 pixels
+    iResizeImage(&coinCollectIcon, 30, 30);      // Resize it to 30x30 pixels
    
+
+    // Load and resize the health item image (NEW)
+    iLoadImage(&healthItemImage, "livesprite.png");
+    iResizeImage(&healthItemImage, 30, 30); // Resize to match coin size for consistency
+
+    // Set dimensions for collision detection (NEW)
+    healthItemWidth = healthItemImage.width;
+    healthItemHeight = healthItemImage.height;
+
+    // Initialize the single health item (NEW)
+    currentHealthItem.active = false; // Start inactive
+    healthItemSpawnDelay = HEALTH_ITEM_SPAWN_INTERVAL; // Initial delay before first spawn attempt
 
    
     iSetTimer(500, incmnt);     // Balloon animation
@@ -901,8 +1039,11 @@ int main(int argc, char *argv[])
     iSetTimer(33, scoreupdate); // Score update and speed increase
 
     // Coin timers
-    iSetTimer(50, coinAnimate);  // Coin rotation animation (change frame every 50ms)
+    iSetTimer(50, coinAnimate);   // Coin rotation animation (change frame every 50ms)
     iSetTimer(16, coinMovement); // Coin movement and spawning logic (move every 16ms)
+
+    // Health item timer (NEW)
+    iSetTimer(16, healthItemMovement); // Move and manage spawning of health items
 
     iInitializeSound(); // Initialize sound system
 
