@@ -1,1054 +1,710 @@
-#include "iGraphics.h"
-#include "iSound.h"
-#include <time.h>
-#include <stdlib.h>
-#include <string>
-#include <vector>
-#include <algorithm>
-#include <fstream>
-#include <iostream>
-#include <ctype.h>
-#include <cmath>
+#include "iGraphics.h" // iGraphics library for graphics
+#include "iSound.h"    // iSound library for sound
+#include <time.h>      // For time-based seeding of random numbers
+#include <stdlib.h>    // For random number generation
+#include <string>      // For string manipulation
+#include <vector>      // For dynamic arrays (vector)
+#include <algorithm>   // For sorting algorithms (sort)
+#include <fstream>     // For file input/output (ifstream, ofstream)
+#include <iostream>    // For console input/output (cin, cout)
+#include <ctype.h>     // For character handling (isalnum)
+#include <cmath>       // For mathematical functions like pow
 
 using namespace std;
 
-// --- Existing Game Data Structures ---
-struct PlayerScore
-{
-    string name;
-    int score;
-    bool operator<(const PlayerScore &other) const
-    {
-        return score > other.score;
-    }
+// --- Game Data ---
+struct PlayerScore { // Struct to hold player name and score
+    string name;     // Player's name
+    int score;       // Player's score
+    bool operator<(const PlayerScore &other) const { return score > other.score; } // Operator for sorting high scores
 };
+vector<PlayerScore> highScores;           // Vector to store high scores
+const string HIGH_SCORES_FILE = "highscores.txt"; // File name for high scores
+const int MAX_HIGH_SCORES = 10;           // Maximum number of high scores to keep
 
-vector<PlayerScore> highScores;
-const string HIGHSCORE_FILE = "highscores.txt";
-const int MAX_HIGHSCORES = 10;
+char playerName[50] = "";             // Player name input buffer
+int playerNameIndex = 0;              // Current index in playerName buffer
+bool isInputtingName = false;         // Flag for name input state
+int finalScore = 0;                   // Score at the end of the game
+int obstacleSpeed = 2;                // Speed of obstacles
+int playerHealth = 3;                 // Player's current health
+int coinsCollected = 0;               // Number of coins collected
 
-char playerName[50] = "";
-int playerNameIndex = 0;
-bool inputName = false;
-int finalScore = 0;
-int obstacleSpeed = 2; // Changed to int
-int health = 3;        // Initial health value
-int coinsCollected = 0;
+// Asset paths for various game elements
+const char* hotAirBalloonFiles[] = {"hab001_1.png", "hab002_1.png", "hab003_1.png", "hab004_1.png", "hab005_1.png", "hab006_1.png", "hab007_1.png", "hab008_1.png", "hab009_1.png", "hab010_1.png"};
+const char* obstacleFiles[] = {"obs1.png", "obs2.png", "obs3.png"};
+const char* cloudFiles[] = {"cloud1.png", "cloud2.png", "cloud3.png", "cloud4.png", "cloud5.png", "cloud6.png", "cloud7.png"};
+const char* menuButtonFiles[] = {"menu_1.png", "menu_2.png", "menu_3.png", "menu_4.png", "menu_5.png"};
+const char* menuButtonBigFiles[] = {"menu_1_big.png", "menu_2_big.png", "menu_3_big.png", "menu_4_big.png", "menu_5_big.png"};
 
-char hab[10][13] = {"hab001_1.png", "hab002_1.png", "hab003_1.png", "hab004_1.png", "hab005_1.png",
-                     "hab006_1.png", "hab007_1.png", "hab008_1.png", "hab009_1.png", "hab010_1.png"};
-char obs[3][10] = {"obs1.png", "obs2.png", "obs3.png"};
-char cloud[7][13] = {"cloud1.png", "cloud2.png", "cloud3.png", "cloud4.png", "cloud5.png", "cloud6.png", "cloud7.png"};
-char menu[5][15] = {"menu_1.png", "menu_2.png", "menu_3.png", "menu_4.png", "menu_5.png"};
-char menuBig[5][20] = {"menu_1_big.png", "menu_2_big.png", "menu_3_big.png", "menu_4_big.png", "menu_5_big.png"};
+// Bird files for animation
+char bird1files[9][14]={"tile001.png","tile002.png","tile003.png","tile004.png","tile005.png","tile006.png","tile007.png","tile008.png","tile009.png"}; 
+char bird2files[6][10]={"bb1.png","bb2.png","bb3.png","bb4.png","bb5.png","bb6.png"}; 
+char bird3files[10][15]={"bbb1.png","bbb2.png","bbb3.png","bbb4.png","bbb5.png","bbb6.png","bbb7.png","bbb8.png","bbb9.png","bbb10.png"};
 
-bool hoverMenu[5] = {false};
-int menuX[5] = {350, 850, 100, 610, 1120};
-int menuY[5] = {260, 240, 60, 60, 60};
-int menuW = 200, menuH = 200;
+bool isMenuHovered[5] = {false};     // Tracks if a menu button is hovered
+int menuButtonX[] = {350, 850, 100, 610, 1120}; // X positions of menu buttons
+int menuButtonY[] = {260, 240, 60, 60, 60};     // Y positions of menu buttons
+int menuButtonWidth = 200, menuButtonHeight = 200; // Menu button dimensions
 
-Image menuBigImg[5], cloudImg[7], skyImg, heartbreak, menuImg[5], menuImghab, back;
-Image habimgfrm[10], obsimgfrm[3];
-Sprite habimg[10], obsimg[3];
+// Loaded Images and Sprites
+Image menuButtonBigImage[5], cloudImage[7], skyImage, heartbreakImage, menuButtonImage[5], menuTitleImage, backButtonImage; // Various game images
+Image hotAirBalloonFrames[10], obstacleFrames[3];   // Image frames for animation
+Sprite hotAirBalloonSprites[10], obstacleSprites[3]; // Sprites for balloon and obstacles
 
-int gamestate = 0;
-int score = 0, scoretick = 0;
-int bi = 0;                          // Current frame index for hot air balloon animation
-int obsx[3], obsy[3], obsi[3];       // X, Y, and image index for obstacles
-int x = 700, y = 70;                 // Player balloon position (for habimg[bi] sprite)
-int easy;                            // Sound handle for background music
-bool isObsActive[3] = {true, true, true}; // Track if an obstacle is active for collision
-bool showHeartbreak = false;
-int heartbreakCounter = 0; // Timer for heartbreak image display
+// Bird and Evil Balloon images and sprites
+Image bird1Frames[9], bird2Frames[6], bird3Frames[10], evilBalloonImage; // Bird and evil balloon image frames
+Sprite bird1Sprite, bird2Sprite, bird3Sprite, evilBalloonSprite;         // Bird and evil balloon sprites
 
-// Cloud positions for parallax effect
-double c1x = 200, c2x = 350, c3x = 500, c4x = 800, c5x = 600, c6x = 920, c7x = 1225;
-double c1y = 114, c2y = 229, c3y = 343, c4y = 457, c5y = 500, c6y = 686, c7y = 800;
+int currentGameState = 0;              // Current game state (0:menu, 1:play, 2:HS, 3:name, 4:about, 6:gameover)
+int gameScore = 0, scoreUpdateTick = 0; // Current game score and update tick
+int balloonFrameIndex = 0;             // Index for hot air balloon animation
+int obstacleX[3], obstacleY[3], obstacleImageIndex[3]; // Obstacle positions and image indices
+int playerX = 700, playerY = 70;      // Player balloon position
+int backgroundMusicHandle;             // Handle for background music
+bool isObstacleActive[3] = {true, true, true}; // Status of obstacles
+bool showHeartbreakEffect = false;     // Flag to show heartbreak image
+int heartbreakCounter = 0;             // Timer for heartbreak display
 
-// --- Coin Data Structures ---
-struct Coin
-{
-    int x, y;
-    int currentFrame; // Index for the rotating coin image (0-13)
-    bool active;      // Is this coin currently on screen and interactable?
+// Cloud parallax positions and speeds
+double cloudX[] = {200, 350, 500, 800, 600, 920, 1225};
+double cloudY[] = {114, 229, 343, 457, 500, 686, 800};
+double cloudSpeed[] = {0.2, -0.1, -0.3, 0.5, 0.25, -0.3, 0.8};
+
+// --- Coin Data ---
+struct Coin { // Struct to represent a coin
+    int x, y;    // Coin position
+    int frame;   // Current animation frame
+    bool active; // Active status
 };
+char coinFileNames[14][15];       // Filenames for coin animation frames
+Image coinAnimationFrames[14];    // Image data for coin animation
+vector<Coin> activeCoins;         // Vector of active coins
+int coinWidth, coinHeight;        // Coin dimensions
+const int MAX_ACTIVE_COINS = 4;   // Max number of active coins at once
+int coinSpeed = 2;                // Speed of coins
+const int MIN_COIN_SEPARATION = 250; // Minimum separation between coins
 
-char coinFiles[14][15]; // Stores filenames like "coin1.png", "coin2.png", ...
-Image coinFrames[14];   // Stores the loaded image data for each coin frame
-vector<Coin> coins;     // A dynamic array to manage all coins
-int coinWidth = 20;     // Will be set after loading the first coin image
-int coinHeight = 20;    // Will be set after loading the first coin image
-const int MAX_ACTIVE_COINS = 4;
-int coinSpeed = 2; // Changed to int and initialized. THIS WILL BE DYNAMIC!
-const int MIN_COIN_SEPARATION = 250;
+int hotAirBalloonWidth, hotAirBalloonHeight; // Player balloon dimensions
 
-// --- Hot Air Balloon Dimensions for collision ---
-int habWidth = 0;
-int habHeight = 0;
+const int BACK_BUTTON_X = 1300, BACK_BUTTON_Y = 740; // Back button position
 
-// --- Back Button Position Constants ---
-const int BACK_BUTTON_X = 1300;
-const int BACK_BUTTON_Y = 740;
+// UI Icons
+Image healthIconImage, coinIconImage; // Images for health and coin icons
 
-// --- Image Declarations ---
-Image healthIcon;      // Declared globally
-Image coinCollectIcon; // Declare coin collection icon
+const int UI_ICON_START_X = 10, UI_ICON_Y = 715, UI_ICON_GAP = 5; // UI icon display parameters
 
-// --- Constants for Health Icon Display ---
-const int HEALTH_ICON_START_X = 10; // Starting X position for the first health icon
-const int HEALTH_ICON_Y = 715;      // Y position for all health icons
-const int HEALTH_ICON_GAP = 5;      // Gap between health icons
+int lastSpeedUpScore30 = 0, lastSpeedUpScore50 = 0; // Score trackers for speed adjustments
 
-// --- Add these two new global variables near your other global score/speed variables ---
-int lastSpeedUpScore50 = 0;
-int lastSpeedUpScore100 = 0;
-
-// --- Health Item Data Structures (NEW) ---
-struct HealthItem {
-    int x, y;
-    bool active; // Is this health item currently on screen and interactable?
+// --- Health Item Data ---
+struct HealthItem { // Struct to represent a health item
+    int x, y;    // Health item position
+    bool active; // Active status
 };
+HealthItem currentHealthItem; // The single active health item
+Image healthItemImage;        // Health item image
+int healthItemWidth, healthItemHeight; // Health item dimensions
+const int MAX_PLAYER_HEALTH = 3;        // Maximum player health
+int healthItemSpawnDelay = 0;           // Timer for health item spawn
+const int HEALTH_ITEM_SPAWN_INTERVAL = 3000; // Spawn interval in milliseconds
 
-HealthItem currentHealthItem; // We'll only track one at a time
-Image healthItemImage;       // Stores the loaded health item image
-int healthItemWidth = 0;     // Will be set after loading
-int healthItemHeight = 0;    // Will be set after loading
-const int MAX_HEALTH = 3;    // Define the maximum health
-int healthItemSpawnDelay = 0; // Timer to control health item spawning
-const int HEALTH_ITEM_SPAWN_INTERVAL = 3000; // milliseconds before attempting to spawn another
+// --- Bird Data ---
+int currentBird = 0;            // 0: no bird, 1-3: specific bird active
+int birdX, birdY;              // Common position for the active bird
+float birdSpeedX, birdSpeedY;   // Speed components for the active bird
+int bird1FrameIndex = 0;        // Animation frame for bird1
+int bird2FrameIndex = 0;        // Animation frame for bird2
+int bird3FrameIndex = 0;        // Animation frame for bird3
 
+int birdSpawnTimerTicks = 0;       // Counts ticks for bird spawning
+int nextBirdSpawnTickTarget = 0;   // Target ticks for next bird spawn
 
-void scoreupdate()
-{
-    scoretick++;
-    if (scoretick % 9 == 0) // Score increments every 9 ticks
-    {
-        score++; // Continuous score increment
+// --- Evil Balloon Data ---
+int evilBalloonX = 1400, evilBalloonY = 750; // Evil balloon initial position
+int evilBalloonSpeedX = -25;                 // Horizontal speed of evil balloon
+int evilBalloonSpeedY = -2;                  // Vertical speed of evil balloon (downward)
+int evilBalloonDirection = 1;                // -1: left, 1: right
+bool isEvilBalloonActive = true;             // Flag for evil balloon activity
+int evilBalloonCooldown = 0;                 // Cooldown timer for spawning
+const int EVIL_BALLOON_SPAWN_INTERVAL = 15 * (1000/100); // 15 seconds cooldown (15 * timer interval of 100ms)
 
-        // Calculate total score including collected coins
-        int totalScore = score + (coinsCollected * 10);
-
-        // First, handle the rule for speed < 10
-        // Speed up every 50 totalScore points, but only if obstacleSpeed is less than 10
-        // AND we haven't already sped up at this 50-point interval.
-        if (obstacleSpeed < 10 && totalScore > 0 && totalScore % 30 == 0 && totalScore > lastSpeedUpScore50)
-        {
-            obstacleSpeed += 2;
-            lastSpeedUpScore50 = totalScore; // Mark this score as the last point we sped up for the 50-interval rule
+// Updates game score and adjusts obstacle/coin speed based on score
+void updateScore() {
+    scoreUpdateTick++;
+    if (scoreUpdateTick % 9 == 0) {
+        gameScore++;
+        int totalScore = gameScore + (coinsCollected * 10);
+        if (obstacleSpeed < 10 && totalScore > 0 && totalScore % 30 == 0 && totalScore > lastSpeedUpScore30) {
+            obstacleSpeed += 2; lastSpeedUpScore30 = totalScore;
         }
-
-        // Then, independently handle the rule for speed >= 10
-        // Speed up every 100 totalScore points, but only if obstacleSpeed is 10 or more
-        // AND we haven't already sped up at this 100-point interval.
-        if (obstacleSpeed >= 10 && totalScore > 0 && totalScore % 50 == 0 && totalScore > lastSpeedUpScore100)
-        {
-            obstacleSpeed += 1;
-            lastSpeedUpScore100 = totalScore; // Mark this score as the last point we sped up for the 100-interval rule
+        if (obstacleSpeed >= 10 && totalScore > 0 && totalScore % 50 == 0 && totalScore > lastSpeedUpScore50) {
+            obstacleSpeed += 1; lastSpeedUpScore50 = totalScore;
         }
-
-        // Finally, apply the maximum speed limit
-        if (obstacleSpeed > 30)
-        {
-            obstacleSpeed = 30;
-        }
-
-        // Keep coin speed in sync with obstacle speed
+        if (obstacleSpeed > 20) obstacleSpeed = 20;
         coinSpeed = obstacleSpeed;
     }
 }
-void loadHighScores()
-{
-    highScores.clear();
-    ifstream file(HIGHSCORE_FILE);
-    if (file.is_open())
-    {
-        string name;
-        int score;
-        while (file >> name >> score)
-        {
-            highScores.push_back({name, score});
-        }
-        file.close();
-        sort(highScores.begin(), highScores.end());
+
+// Loads high scores from file
+void loadHighScores() {
+    highScores.clear(); ifstream file(HIGH_SCORES_FILE);
+    if (file.is_open()) {
+        string name; int s;
+        while (file >> name >> s) highScores.push_back({name, s});
+        file.close(); sort(highScores.begin(), highScores.end());
     }
 }
 
-void saveHighScores()
-{
-    ofstream file(HIGHSCORE_FILE);
-    for (int i = 0; i < min((int)highScores.size(), MAX_HIGHSCORES); ++i)
-    {
-        file << highScores[i].name << " " << highScores[i].score << endl;
-    }
+// Saves high scores to file
+void saveHighScores() {
+    ofstream file(HIGH_SCORES_FILE);
+    for (int i = 0; i < min((int)highScores.size(), MAX_HIGH_SCORES); ++i) file << highScores[i].name << " " << highScores[i].score << endl;
     file.close();
 }
 
-void addHighScore(string name, int score)
-{
-    for (char &c : name)
-        if (c == ' ')
-            c = '_'; // Replace spaces with underscores for file storage
-    highScores.push_back({name, score});
-    sort(highScores.begin(), highScores.end());
-    if (highScores.size() > MAX_HIGHSCORES)
-        highScores.resize(MAX_HIGHSCORES); // Keep only the top scores
-    saveHighScores();
-    loadHighScores(); // Reload to ensure data integrity and sorted order
+// Adds a new score to high scores list
+void addHighScore(string name, int s) {
+    for (char &c : name) if (c == ' ') c = '_';
+    highScores.push_back({name, s}); sort(highScores.begin(), highScores.end());
+    if (highScores.size() > MAX_HIGH_SCORES) highScores.resize(MAX_HIGH_SCORES);
+    saveHighScores(); loadHighScores();
 }
 
-void move()
-{
-    if (isSpecialKeyPressed(GLUT_KEY_RIGHT))
-        x += 15;
-    if (isSpecialKeyPressed(GLUT_KEY_LEFT))
-        x -= 15;
+// Controls player movement based on arrow keys
+void movePlayer() {
+    if (isSpecialKeyPressed(GLUT_KEY_RIGHT)) playerX += 15;
+    if (isSpecialKeyPressed(GLUT_KEY_LEFT)) playerX -= 15;
+    if (isSpecialKeyPressed(GLUT_KEY_UP)) playerY += 15;
+    if (isSpecialKeyPressed(GLUT_KEY_DOWN)) playerY -= 15;
 
-    
-    if (x + habWidth > 1400)
-    {
-        x = 0; // Wrap it to appear immediately at the far left edge of the screen
-    }
- 
-    if (x < 0)
-    {
-        x = 1400 - habWidth; // Wrap it to appear immediately at the far right edge of the screen
-    }
+    if (playerX + hotAirBalloonWidth > 1400) playerX = 0; // Wrap right
+    if (playerX < 0) playerX = 1400 - hotAirBalloonWidth; // Wrap left
+    if (playerY > 760) playerY = 760; // Max Y boundary
+    if (playerY < 0) playerY = 0; // Min Y boundary
 
-    iSetSpritePosition(&habimg[bi], x, y);
+    iSetSpritePosition(&hotAirBalloonSprites[balloonFrameIndex], playerX, playerY);
 }
 
-void obstacle()
-{
-    for (int i = 0; i < 3; i++)
-    {
-        if (isObsActive[i])
-        { // Only move active obstacles
-            obsy[i] -= obstacleSpeed;
-            if (obsy[i] < -obsimgfrm[obsi[i]].height)
-            {                                                              // Check if obstacle is completely off-screen
-                obsy[i] = 800;                                             // Reset to top
-                obsx[i] = rand() % (1400 - obsimgfrm[obsi[i]].width);      // Random X within window width
-                obsi[i] = rand() % 3;                                      // Random obstacle image
-                iChangeSpriteFrames(&obsimg[i], &obsimgfrm[obsi[i]], 1); // Update sprite frame
-            }
-            iSetSpritePosition(&obsimg[i], obsx[i], obsy[i]); // Update sprite position
+// Manages obstacle movement and respawn
+void manageObstacles() {
+    for (int i = 0; i < 3; i++) {
+        obstacleY[i] -= obstacleSpeed;
+        if (obstacleY[i] < -obstacleFrames[obstacleImageIndex[i]].height) { // Off-screen check
+            isObstacleActive[i] = true; obstacleY[i] = 800; // Reset Y
+            obstacleX[i] = rand() % (1400 - obstacleFrames[obstacleImageIndex[i]].width); // Random X
+            obstacleImageIndex[i] = rand() % 3; // Random image
+            iChangeSpriteFrames(&obstacleSprites[i], &obstacleFrames[obstacleImageIndex[i]], 1);
         }
-        else
-        {                                    // Obstacle is inactive (e.g., just collided)
-            obsy[i] -= obstacleSpeed; // Still move it off-screen
-            if (obsy[i] < -obsimgfrm[obsi[i]].height)
-            { // Once off-screen, reactivate and reset
-                isObsActive[i] = true;
-                obsy[i] = 800;
-                obsx[i] = rand() % (1400 - obsimgfrm[obsi[i]].width);
-                obsi[i] = rand() % 3;
-                iChangeSpriteFrames(&obsimg[i], &obsimgfrm[obsi[i]], 1); // Update sprite frame
-            }
-            iSetSpritePosition(&obsimg[i], obsx[i], obsy[i]); // Update sprite position
-        }
+        iSetSpritePosition(&obstacleSprites[i], obstacleX[i], obstacleY[i]);
     }
 }
 
-void incmnt()
-{                                // Hot air balloon animation
-    bi = (bi + 1) % 10; // Cycle through 10 frames
- 
-    iChangeSpriteFrames(&habimg[bi], &habimgfrm[bi], 1);
-    iSetSpritePosition(&habimg[bi], x, y);
+// Animates the hot air balloon sprite
+void animateBalloon() {
+    balloonFrameIndex = (balloonFrameIndex + 1) % 10;
+    iChangeSpriteFrames(&hotAirBalloonSprites[balloonFrameIndex], &hotAirBalloonFrames[balloonFrameIndex], 1);
+    iSetSpritePosition(&hotAirBalloonSprites[balloonFrameIndex], playerX, playerY);
 }
 
-void cldx()
-{ // Cloud horizontal movement
-    double *cx[] = {&c1x, &c2x, &c3x, &c4x, &c5x, &c6x, &c7x};
-    double speed[] = {.2, -.1, -.3, .5, .25, -.3, .8}; // Different speeds for parallax
-    for (int i = 0; i < 7; i++)
-    {
-        *cx[i] += speed[i];
-        // Wrap clouds around horizontally
-        if (speed[i] > 0 && *cx[i] > 1450)
-            *cx[i] = -150;
-        else if (speed[i] < 0 && *cx[i] < -150)
-            *cx[i] = 1450;
+// Moves clouds horizontally for parallax effect
+void moveCloudsX() {
+    for (int i = 0; i < 7; i++) {
+        cloudX[i] += cloudSpeed[i];
+        if (cloudSpeed[i] > 0 && cloudX[i] > 1450) cloudX[i] = -150; // Wrap right
+        else if (cloudSpeed[i] < 0 && cloudX[i] < -150) cloudX[i] = 1450; // Wrap left
     }
 }
 
-void cldy()
-{ // Cloud vertical movement
-    double *cy[] = {&c1y, &c2y, &c3y, &c4y, &c5y, &c6y, &c7y};
-    for (int i = 0; i < 7; i++)
-    {
-        *cy[i] -= 2; // Move downwards
-        if (*cy[i] < -50)
-            *cy[i] = 800; // Reset to top
+// Moves clouds vertically
+void moveCloudsY() {
+    for (int i = 0; i < 7; i++) {
+        cloudY[i] -= 2; // Move downwards
+        if (cloudY[i] < -50) cloudY[i] = 800; // Reset to top
     }
 }
 
-// --- Coin Functions ---
+// Updates animation frames for active coins
+void animateCoins() {
+    for (size_t i = 0; i < activeCoins.size(); ++i) if (activeCoins[i].active) activeCoins[i].frame = (activeCoins[i].frame + 1) % 14;
+}
 
-// Updates the animation frame for all active coins
-void coinAnimate()
-{
-    for (size_t i = 0; i < coins.size(); ++i)
-    {
-        if (coins[i].active)
-        {
-            coins[i].currentFrame = (coins[i].currentFrame + 1) % 14; // Cycle through 14 frames
+// Checks for collision between a coin and obstacles
+bool checkCoinObstacleCollision(int coinLeft, int coinRight, int coinBottom, int coinTop) {
+    for (int i = 0; i < 3; ++i) { // Obstacles
+        if (isObstacleActive[i]) {
+            int obstacleLeft = obstacleX[i], obstacleRight = obstacleX[i] + obstacleFrames[obstacleImageIndex[i]].width;
+            int obstacleBottom = obstacleY[i], obstacleTop = obstacleY[i] + obstacleFrames[obstacleImageIndex[i]].height;
+            if (coinLeft < obstacleRight && coinRight > obstacleLeft && coinBottom < obstacleTop && coinTop > obstacleBottom) return true;
         }
     }
+    return false;
 }
 
-// Checks if a potential coin position (bounding box) overlaps with any active obstacle
-bool checkCoinObstacleCollision(int coinLeft, int coinRight, int coinBottom, int coinTop)
-{
-    for (int i = 0; i < 3; ++i)
-    {
-        if (isObsActive[i])
-        {
-            // Get current bounding box of the obstacle
-            int obsLeft = obsx[i];
-            int obsRight = obsx[i] + obsimgfrm[obsi[i]].width;
-            int obsBottom = obsy[i];
-            int obsTop = obsy[i] + obsimgfrm[obsi[i]].height;
+// Spawns a new coin at a valid position
+void spawnCoin() {
+    int coinIndex = -1;
+    for (size_t i = 0; i < activeCoins.size(); ++i) if (!activeCoins[i].active) { coinIndex = i; break; }
+    if (coinIndex == -1 && activeCoins.size() < MAX_ACTIVE_COINS) { activeCoins.push_back({}); coinIndex = activeCoins.size() - 1; }
+    else if (coinIndex == -1) return;
 
-            // Check for Axis-Aligned Bounding Box (AABB) overlap
-            if (coinLeft < obsRight && coinRight > obsLeft &&
-                coinBottom < obsTop && coinTop > obsBottom)
-            {
-                return true; // Collision found
-            }
-        }
-    }
-    return false; // No collision with any active obstacle
-}
-
-// Spawns a coin at a random position, avoiding active obstacles AND other coins
-void spawnCoin()
-{
-    // Find an inactive coin slot in our vector, or add a new one if space allows
-    int coinIdx = -1;
-    for (size_t i = 0; i < coins.size(); ++i)
-    {
-        if (!coins[i].active)
-        {
-            coinIdx = i;
-            break;
-        }
-    }
-    if (coinIdx == -1 && coins.size() < MAX_ACTIVE_COINS)
-    {
-        coins.push_back({}); // Add a new empty Coin struct
-        coinIdx = coins.size() - 1;
-    }
-    else if (coinIdx == -1)
-    {            // No inactive coins and already at max capacity
-        return; // Cannot spawn more coins right now
-    }
-
-    Coin &newCoin = coins[coinIdx]; // Get a reference to the coin we're about to use
-
+    Coin &newCoin = activeCoins[coinIndex];
     bool positionFound = false;
-    const int MAX_SPAWN_RETRIES = 50; // Increased retries for better chance of finding a spot
-    for (int retry = 0; retry < MAX_SPAWN_RETRIES; ++retry)
-    {
-        // Generate potential X within screen bounds, considering coin width
-        int potentialX = rand() % (1400 - coinWidth);
-        // Generate potential Y above the screen, staggered, to give coins time to separate
-        int potentialY = 800 + (rand() % 400);
+    for (int retry = 0; retry < 50; ++retry) {
+        int posX = rand() % (1400 - coinWidth);
+        int posY = 800 + (rand() % 400);
+        int coinLeft = posX, coinRight = posX + coinWidth, coinBottom = posY, coinTop = posY + coinHeight;
 
-        int currentCoinLeft = potentialX;
-        int currentCoinRight = potentialX + coinWidth;
-        int currentCoinBottom = potentialY;
-        int currentCoinTop = potentialY + coinHeight;
+        if (checkCoinObstacleCollision(coinLeft, coinRight, coinBottom, coinTop)) continue; // Avoid obstacles
 
-        // Check for collision with obstacles first
-        if (checkCoinObstacleCollision(currentCoinLeft, currentCoinRight, currentCoinBottom, currentCoinTop))
-        {
-            continue; // Retry if it collides with an obstacle
-        }
-
-        // --- NEW: Check for collision/proximity with other active coins ---
-        bool overlapsWithOtherCoins = false;
-        for (size_t i = 0; i < coins.size(); ++i)
-        {
-            if (coins[i].active && i != (size_t)coinIdx)
-            {
-                // Calculate distance between centers. Using squared distance for performance.
-                double distSq = pow((potentialX + coinWidth / 2.0) - (coins[i].x + coinWidth / 2.0), 2) +
-                                pow((potentialY + coinHeight / 2.0) - (coins[i].y + coinHeight / 2.0), 2);
-
-                // Compare with squared MIN_COIN_SEPARATION
-                if (distSq < pow(MIN_COIN_SEPARATION, 2))
-                {
-                    overlapsWithOtherCoins = true;
-                    break;
-                }
+        bool overlap = false;
+        for (size_t i = 0; i < activeCoins.size(); ++i) {
+            if (activeCoins[i].active && i != (size_t)coinIndex) {
+                double distanceSq = pow((posX + coinWidth/2.0) - (activeCoins[i].x + coinWidth/2.0), 2) + pow((posY + coinHeight/2.0) - (activeCoins[i].y + coinHeight/2.0), 2);
+                if (distanceSq < pow(MIN_COIN_SEPARATION, 2)) { overlap = true; break; }
             }
         }
-
-        if (overlapsWithOtherCoins)
-        {
-            continue; // Retry if it overlaps or is too close to another coin
-        }
+        if (overlap) continue; // Avoid other coins
         
-        // If no obstacle or coin overlap, this position is good
-        newCoin.x = potentialX;
-        newCoin.y = potentialY;
-        newCoin.currentFrame = rand() % 14;
-        newCoin.active = true;
-        positionFound = true;
-        break;
+        newCoin.x = posX; newCoin.y = posY; newCoin.frame = rand() % 14; newCoin.active = true; positionFound = true; break;
     }
-
-    if (!positionFound)
-    {
-        newCoin.active = false; // If no clear spot found after retries, keep it inactive
-    }
+    if (!positionFound) newCoin.active = false;
 }
 
-// Moves active coins downwards and handles off-screen coins; also triggers spawning
-void coinMovement()
-{
+// Manages coin movement and spawning
+void manageCoinMovement() {
     int activeCoinCount = 0;
-    for (size_t i = 0; i < coins.size(); ++i)
-    {
-        if (coins[i].active)
-        {
-            coins[i].y -= coinSpeed; // Move coin downwards using the dynamic speed
-
-            if (coins[i].y < -coinHeight)
-            {                                // Coin went completely off-screen
-                coins[i].active = false; // Deactivate it
-            }
-            activeCoinCount++; // Count active coins
+    for (size_t i = 0; i < activeCoins.size(); ++i) {
+        if (activeCoins[i].active) {
+            activeCoins[i].y -= coinSpeed;
+            if (activeCoins[i].y < -coinHeight) activeCoins[i].active = false; // Off-screen
+            activeCoinCount++;
         }
     }
-
- 
-    if (activeCoinCount < MAX_ACTIVE_COINS && (rand() % 100) < 5)
-    {
-        spawnCoin();
-    }
+    if (activeCoinCount < MAX_ACTIVE_COINS && (rand() % 100) < 5) spawnCoin();
 }
 
-// --- Health Item Functions (NEW) ---
-
-// Checks if a potential health item position overlaps with any active obstacle or coin
+// Checks for collision between a health item and obstacles, coins, birds, or evil balloon
 bool checkHealthItemCollision(int itemLeft, int itemRight, int itemBottom, int itemTop) {
-    // Check collision with obstacles
-    for (int i = 0; i < 3; ++i) {
-        if (isObsActive[i]) {
-            int obsLeft = obsx[i];
-            int obsRight = obsx[i] + obsimgfrm[obsi[i]].width;
-            int obsBottom = obsy[i];
-            int obsTop = obsy[i] + obsimgfrm[obsi[i]].height;
-
-            if (itemLeft < obsRight && itemRight > obsLeft &&
-                itemBottom < obsTop && itemTop > obsBottom) {
-                return true; // Collision with obstacle
-            }
+    for (int i = 0; i < 3; ++i) { // Obstacles
+        if (isObstacleActive[i]) {
+            int obstacleLeft = obstacleX[i], obstacleRight = obstacleX[i] + obstacleFrames[obstacleImageIndex[i]].width;
+            int obstacleBottom = obstacleY[i], obstacleTop = obstacleY[i] + obstacleFrames[obstacleImageIndex[i]].height;
+            if (itemLeft < obstacleRight && itemRight > obstacleLeft && itemBottom < obstacleTop && itemTop > obstacleBottom) return true;
         }
     }
-
-    // Check collision with active coins
-    for (size_t i = 0; i < coins.size(); ++i) {
-        if (coins[i].active) {
-            int coinLeft = coins[i].x;
-            int coinRight = coins[i].x + coinWidth;
-            int coinBottom = coins[i].y;
-            int coinTop = coins[i].y + coinHeight;
-
-            if (itemLeft < coinRight && itemRight > coinLeft &&
-                itemBottom < coinTop && coinTop > coinBottom) {
-                return true; // Collision with coin
-            }
+    for (size_t i = 0; i < activeCoins.size(); ++i) { // Coins
+        if (activeCoins[i].active) {
+            int coinLeft = activeCoins[i].x, coinRight = activeCoins[i].x + coinWidth;
+            int coinBottom = activeCoins[i].y, coinTop = activeCoins[i].y + coinHeight;
+            if (itemLeft < coinRight && itemRight > coinLeft && itemBottom < coinTop && itemTop > coinBottom) return true;
         }
     }
-    return false; // No collision
+    // Check collision with active bird
+    Sprite* activeBirdSprite = nullptr; Image* activeBirdImage = nullptr;
+    if (currentBird == 1) { activeBirdSprite = &bird1Sprite; activeBirdImage = &bird1Frames[bird1FrameIndex]; }
+    else if (currentBird == 2) { activeBirdSprite = &bird2Sprite; activeBirdImage = &bird2Frames[bird2FrameIndex]; }
+    else if (currentBird == 3) { activeBirdSprite = &bird3Sprite; activeBirdImage = &bird3Frames[bird3FrameIndex]; }
+
+    if (activeBirdSprite && activeBirdImage && currentBird != 0) {
+        if (itemLeft < activeBirdSprite->x + activeBirdImage->width && itemRight > activeBirdSprite->x &&
+            itemBottom < activeBirdSprite->y + activeBirdImage->height && itemTop > activeBirdSprite->y) {
+            return true;
+        }
+    }
+    // Check collision with evil balloon
+    if (isEvilBalloonActive) {
+        if (itemLeft < evilBalloonX + evilBalloonImage.width && itemRight > evilBalloonX &&
+            itemBottom < evilBalloonY + evilBalloonImage.height && itemTop > evilBalloonY) {
+            return true;
+        }
+    }
+    return false;
 }
 
-// Spawns a health item if one isn't active and health isn't full
+// Spawns a health item if not already active and player health is not full
 void spawnHealthItem() {
-    if (!currentHealthItem.active && health < MAX_HEALTH) { // Only spawn if inactive and health isn't full
+    if (!currentHealthItem.active && playerHealth < MAX_PLAYER_HEALTH) {
         bool positionFound = false;
-        const int MAX_SPAWN_RETRIES = 50;
-
-        for (int retry = 0; retry < MAX_SPAWN_RETRIES; ++retry) {
-            int potentialX = rand() % (1400 - healthItemWidth);
-            int potentialY = 800 + (rand() % 400); // Staggered above screen
-
-            int itemLeft = potentialX;
-            int itemRight = potentialX + healthItemWidth;
-            int itemBottom = potentialY;
-            int itemTop = potentialY + healthItemHeight;
-
+        for (int retry = 0; retry < 50; ++retry) {
+            int posX = rand() % (1400 - healthItemWidth);
+            int posY = 800 + (rand() % 400); // Above screen
+            int itemLeft = posX, itemRight = posX + healthItemWidth, itemBottom = posY, itemTop = posY + healthItemHeight;
             if (!checkHealthItemCollision(itemLeft, itemRight, itemBottom, itemTop)) {
-                currentHealthItem.x = potentialX;
-                currentHealthItem.y = potentialY;
-                currentHealthItem.active = true;
-                positionFound = true;
-                break;
+                currentHealthItem.x = posX; currentHealthItem.y = posY; currentHealthItem.active = true;
+                positionFound = true; break;
             }
         }
-        if (!positionFound) {
-            currentHealthItem.active = false; // Failed to find a spot, keep inactive
-        }
+        if (!positionFound) currentHealthItem.active = false;
     }
 }
 
-// Moves active health item downwards and handles off-screen items
-void healthItemMovement() {
+// Manages health item movement and spawning
+void manageHealthItemMovement() {
     if (currentHealthItem.active) {
-        currentHealthItem.y -= coinSpeed; // Use coinSpeed for consistency
-
+        currentHealthItem.y -= coinSpeed; // Health item moves at coin speed
         if (currentHealthItem.y < -healthItemHeight) {
-            currentHealthItem.active = false; // Deactivate if off-screen
-            healthItemSpawnDelay = HEALTH_ITEM_SPAWN_INTERVAL; // Reset delay for next spawn attempt
+            currentHealthItem.active = false; // Off-screen
+            healthItemSpawnDelay = HEALTH_ITEM_SPAWN_INTERVAL; // Reset delay
         }
     } else {
-        // If inactive, count down to next spawn attempt
-        healthItemSpawnDelay -= 16; // Decrement by timer interval (e.g., 16ms)
+        healthItemSpawnDelay -= 16; // Decrement timer
         if (healthItemSpawnDelay <= 0) {
             spawnHealthItem();
-            healthItemSpawnDelay = HEALTH_ITEM_SPAWN_INTERVAL; // Reset delay after attempt
+            healthItemSpawnDelay = HEALTH_ITEM_SPAWN_INTERVAL; // Reset delay
         }
     }
 }
 
+// Resets and spawns a new bird at a random position, aiming towards the player
+void spawnNewBird() {
+    currentBird = (rand() % 3) + 1; // Randomly choose bird 1, 2, or 3
+    int targetX = playerX; int targetY = playerY; // Target is player's current position
+    float travelTicks = (float)(rand() % 21 + 15); // 15 to 35 ticks for travel time (1.5 to 3.5 seconds)
 
-void iDraw()
-{
-    iClear();
+    if (currentBird == 1 || currentBird == 2) { // Bird 1 and 2 spawn from left
+        birdX = -(rand() % 100 + 50); birdY = rand() % 700 + 50;
+        birdSpeedX = (targetX - birdX) / travelTicks; birdSpeedY = (targetY - birdY) / travelTicks;
+    } else { // Bird 3 spawns from right
+        birdX = 1400 + (rand() % 100 + 50); birdY = rand() % 700 + 50;
+        birdSpeedX = (targetX - birdX) / travelTicks; birdSpeedY = (targetY - birdY) / travelTicks;
+    }
+    // Ensure a sufficient minimum speed
+    if (abs(birdSpeedX) < 12) birdSpeedX = (birdSpeedX > 0 ? 12 : -12);
+    if (abs(birdSpeedY) < 12) birdSpeedY = (birdSpeedY > 0 ? 12 : -12);
 
-    // Draw background and clouds (always visible)
-    iShowLoadedImage(0, 0, &skyImg);
-    iShowLoadedImage(c1x, c1y, &cloudImg[0]);
-    iShowLoadedImage(c2x, c2y, &cloudImg[1]);
-    iShowLoadedImage(c3x, c3y, &cloudImg[2]);
-    iShowLoadedImage(c4x, c4y, &cloudImg[3]);
-    iShowLoadedImage(c5x, c5y, &cloudImg[4]);
-    iShowLoadedImage(c6x, c6y, &cloudImg[5]);
-    iShowLoadedImage(c7x, c7y, &cloudImg[6]);
+    birdSpawnTimerTicks = 0; // Reset spawn tick counter
+    nextBirdSpawnTickTarget = rand() % 21 + 15; // New random interval for next bird
+}
 
-    if (gamestate == 0)
-    {
-        // Main menu
-        iShowLoadedImage(500, 530, &menuImghab);
-        for (int i = 0; i < 5; i++)
-        {
-            if (hoverMenu[i])
-                iShowLoadedImage(menuX[i] - 10, menuY[i] - 10, &menuBigImg[i]);
-            else
-                iShowLoadedImage(menuX[i], menuY[i], &menuImg[i]);
+// Manages bird and evil balloon movement and spawning
+void manageSpecialObstacles() {
+    if (currentGameState != 1) return; // Only move special obstacles during gameplay
+
+    // Bird movement and spawning
+    if (currentBird == 0) { // No bird active, check for spawn
+        birdSpawnTimerTicks++;
+        if (birdSpawnTimerTicks >= nextBirdSpawnTickTarget) spawnNewBird();
+    } else { // Bird is active, move it
+        birdX += birdSpeedX; birdY += birdSpeedY;
+
+        int currentBirdWidth = 0, currentBirdHeight = 0; // Get current bird's dimensions
+        if (currentBird == 1) { currentBirdWidth = bird1Frames[bird1FrameIndex].width; currentBirdHeight = bird1Frames[bird1FrameIndex].height; }
+        else if (currentBird == 2) { currentBirdWidth = bird2Frames[bird2FrameIndex].width; currentBirdHeight = bird2Frames[bird2FrameIndex].height; }
+        else if (currentBird == 3) { currentBirdWidth = bird3Frames[bird3FrameIndex].width; currentBirdHeight = bird3Frames[bird3FrameIndex].height; }
+
+        if (birdX < -currentBirdWidth || birdX > 1400 + currentBirdWidth || birdY < -currentBirdHeight || birdY > 800 + currentBirdHeight) {
+            currentBird = 0; // Deactivate bird if off-screen
+            birdSpawnTimerTicks = 0; nextBirdSpawnTickTarget = rand() % 21 + 15; return;
+        }
+
+        // Apply position to the correct sprite and animate
+        if (currentBird == 1) { iSetSpritePosition(&bird1Sprite, birdX, birdY); bird1FrameIndex = (bird1FrameIndex + 1) % 9; iChangeSpriteFrames(&bird1Sprite, &bird1Frames[bird1FrameIndex], 1); }
+        else if (currentBird == 2) { iSetSpritePosition(&bird2Sprite, birdX, birdY); bird2FrameIndex = (bird2FrameIndex + 1) % 6; iChangeSpriteFrames(&bird2Sprite, &bird2Frames[bird2FrameIndex], 1); }
+        else if (currentBird == 3) { iSetSpritePosition(&bird3Sprite, birdX, birdY); bird3FrameIndex = (bird3FrameIndex + 1) % 10; iChangeSpriteFrames(&bird3Sprite, &bird3Frames[bird3FrameIndex], 1); }
+    }
+
+    // Evil balloon movement and spawning
+    if (isEvilBalloonActive) {
+        evilBalloonX += evilBalloonSpeedX * evilBalloonDirection; evilBalloonY += evilBalloonSpeedY;
+        if(evilBalloonX < 20 || evilBalloonX + evilBalloonImage.width > 1400) evilBalloonDirection *= -1; // Change horizontal direction
+        iSetSpritePosition(&evilBalloonSprite, evilBalloonX, evilBalloonY);
+
+        if (evilBalloonX < -evilBalloonImage.width || evilBalloonX > 1400 + evilBalloonImage.width || evilBalloonY < -evilBalloonImage.height || evilBalloonY > 800 + evilBalloonImage.height) { // Offscreen check
+            isEvilBalloonActive = false; evilBalloonX = 1400; evilBalloonY = 750; evilBalloonCooldown = 0;
+        }
+    } else {
+        evilBalloonCooldown++;
+        if (evilBalloonCooldown >= EVIL_BALLOON_SPAWN_INTERVAL) { // Cooldown for evil balloon
+            isEvilBalloonActive = true; evilBalloonX = 1400; evilBalloonY = rand() % 400 + 300; evilBalloonDirection = -1;
+            iSetSpritePosition(&evilBalloonSprite, evilBalloonX, evilBalloonY);
         }
     }
-    else if (gamestate == 1)
-    {
-      
-        iShowSprite(&habimg[bi]);
+}
 
-        // For collision, use the global x, y, habWidth, habHeight that track the balloon's position and size
-        int habLeft = x;
-        int habRight = x + habWidth;
-        int habBottom = y;
-        int habTop = y + habHeight;
+void iDraw() {
+    iClear(); iShowLoadedImage(0, 0, &skyImage); // Background
+    for (int i = 0; i < 7; i++) iShowLoadedImage(cloudX[i], cloudY[i], &cloudImage[i]); // Clouds
 
-        // Draw and handle obstacles
-        for (int i = 0; i < 3; i++)
-        {
-            if (isObsActive[i])
-            {
-                iShowSprite(&obsimg[i]);
+    if (currentGameState == 0) { // Main menu
+        iShowLoadedImage(500, 530, &menuTitleImage);
+        for (int i = 0; i < 5; i++) {
+            if (isMenuHovered[i]) iShowLoadedImage(menuButtonX[i] - 10, menuButtonY[i] - 10, &menuButtonBigImage[i]);
+            else iShowLoadedImage(menuButtonX[i], menuButtonY[i], &menuButtonImage[i]);
+        }
+    } else if (currentGameState == 1) { // Game play
+        iShowSprite(&hotAirBalloonSprites[balloonFrameIndex]);
+        int playerLeft = playerX, playerRight = playerX + hotAirBalloonWidth, playerBottom = playerY, playerTop = playerY + hotAirBalloonHeight; // Player bounds
 
-                // Player-Obstacle Collision using iCheckCollision for sprites
-                if (iCheckCollision(&habimg[bi], &obsimg[i]))
-                {
-                    showHeartbreak = true;
-                    heartbreakCounter = 60;          // Show heartbreak for 60 frames (approx 1 sec at 60 FPS)
-                    iPauseSound(easy);               // Pause background music
-                    iPlaySound("wrong.wav", false, 80); // Play collision sound
-                    health--;                        // Decrease health
-                    isObsActive[i] = false;          // Deactivate this specific obstacle after collision
-
-                    if (health <= 0)
-                    {
-                        finalScore = score;
-                        addHighScore(playerName, finalScore);
-                        gamestate = 6; // Switch to Game Over screen
-                    }
-                    else
-                    {
-                        iResumeSound(easy); // Resume background music if not game over
-                    }
+        for (int i = 0; i < 3; i++) { // Obstacles
+            if (isObstacleActive[i]) {
+                iShowSprite(&obstacleSprites[i]);
+                if (iCheckCollision(&hotAirBalloonSprites[balloonFrameIndex], &obstacleSprites[i])) { // Player-obstacle collision
+                    showHeartbreakEffect = true; heartbreakCounter = 60;
+                    iPauseSound(backgroundMusicHandle); iPlaySound("wrong.wav", false, 80);
+                    playerHealth--; isObstacleActive[i] = false; // Deactivate obstacle
+                    if (playerHealth <= 0) {
+                        finalScore = gameScore; addHighScore(playerName, finalScore); currentGameState = 6; // Game Over
+                    } else iResumeSound(backgroundMusicHandle);
                 }
             }
         }
 
-        // --- Coin Drawing and Player-Coin Collision ---
-        for (size_t i = 0; i < coins.size(); ++i)
-        {
-            if (coins[i].active)
-            {
-                // Draw the current rotation frame of the coin
-                iShowLoadedImage(coins[i].x, coins[i].y, &coinFrames[coins[i].currentFrame]);
+        // --- BIRD COLLISION LOGIC ---
+        if (currentBird != 0) {
+            Sprite* activeBirdSprite = nullptr;
+            if (currentBird == 1) activeBirdSprite = &bird1Sprite;
+            else if (currentBird == 2) activeBirdSprite = &bird2Sprite;
+            else if (currentBird == 3) activeBirdSprite = &bird3Sprite;
 
-                // Player-Coin Collision (AABB check)
-                int coinLeft = coins[i].x;
-                int coinRight = coins[i].x + coinWidth;
-                int coinBottom = coins[i].y;
-                int coinTop = coins[i].y + coinHeight;
+            if (activeBirdSprite && iCheckCollision(&hotAirBalloonSprites[balloonFrameIndex], activeBirdSprite)) {
+                currentBird = 0; // Deactivate the bird
+                showHeartbreakEffect = true; heartbreakCounter = 60;
+                iPauseSound(backgroundMusicHandle); iPlaySound("wrong.wav", false, 80);
+                playerHealth--; // Reduce health
+                if (playerHealth <= 0) {
+                    finalScore = gameScore; addHighScore(playerName, finalScore); currentGameState = 6; // Game Over
+                } else iResumeSound(backgroundMusicHandle);
+            }
+        }
+        // --- END BIRD COLLISION LOGIC ---
 
-                if (habLeft < coinRight && habRight > coinLeft &&
-                    habBottom < coinTop && habTop > coinBottom)
-                {
-                    // Collision with coin!
-                    score += 10;                     // Increase score for collecting a coin
-                    coinsCollected++;                // Increment coinsCollected
-                    coins[i].active = false;         // Deactivate the collected coin
-                    iPlaySound("coin.wav", false, 80); // Play coin collection sound (requires coin.wav)
+        // --- EVIL BALLOON COLLISION LOGIC ---
+        if (isEvilBalloonActive) {
+            iShowSprite(&evilBalloonSprite); // Draw the evil balloon
+            if (iCheckCollision(&hotAirBalloonSprites[balloonFrameIndex], &evilBalloonSprite)) {
+                isEvilBalloonActive = false; evilBalloonX = 1400; evilBalloonY = 750; evilBalloonCooldown = 0;
+                showHeartbreakEffect = true; heartbreakCounter = 60;
+                iPauseSound(backgroundMusicHandle); iPlaySound("wrong.wav", false, 80);
+                playerHealth--; // Reduce health
+                if (playerHealth <= 0) {
+                    finalScore = gameScore; addHighScore(playerName, finalScore); currentGameState = 6; // Game over
+                } else iResumeSound(backgroundMusicHandle);
+            }
+        }
+        // --- END EVIL BALLOON COLLISION LOGIC ---
+
+        for (size_t i = 0; i < activeCoins.size(); ++i) { // Coins
+            if (activeCoins[i].active) {
+                iShowLoadedImage(activeCoins[i].x, activeCoins[i].y, &coinAnimationFrames[activeCoins[i].frame]);
+                int coinLeft = activeCoins[i].x, coinRight = activeCoins[i].x + coinWidth, coinBottom = activeCoins[i].y, coinTop = activeCoins[i].y + coinHeight;
+                if (playerLeft < coinRight && playerRight > coinLeft && playerBottom < coinTop && playerTop > coinBottom) { // Player-coin collision
+                    gameScore += 10; coinsCollected++; activeCoins[i].active = false; iPlaySound("coin.wav", false, 80);
                 }
             }
         }
-    
-        // --- Health Item Drawing and Player-Health Item Collision (NEW) ---
-        if (currentHealthItem.active) {
+        
+        if (currentHealthItem.active) { // Health item
             iShowLoadedImage(currentHealthItem.x, currentHealthItem.y, &healthItemImage);
-
-            // Player-Health Item Collision (AABB check)
-            int healthItemLeft = currentHealthItem.x;
-            int healthItemRight = currentHealthItem.x + healthItemWidth;
-            int healthItemBottom = currentHealthItem.y;
-            int healthItemTop = currentHealthItem.y + healthItemHeight;
-
-            if (habLeft < healthItemRight && habRight > healthItemLeft &&
-                habBottom < healthItemTop && habTop > healthItemBottom) {
-                // Collision with health item!
-                if (health < MAX_HEALTH) { // Only increase health if not at max
-                    health++;
-                    iPlaySound("health_pickup.wav", false, 80); // Play a health pickup sound (you'll need this file)
-                }
-                currentHealthItem.active = false; // Deactivate the collected health item
-                healthItemSpawnDelay = HEALTH_ITEM_SPAWN_INTERVAL; // Reset delay for next spawn
+            int healthItemLeft = currentHealthItem.x, healthItemRight = currentHealthItem.x + healthItemWidth;
+            int healthItemBottom = currentHealthItem.y, healthItemTop = currentHealthItem.y + healthItemHeight;
+            if (playerLeft < healthItemRight && playerRight > healthItemLeft && playerBottom < healthItemTop && playerTop > healthItemBottom) { // Player-health item collision
+                if (playerHealth < MAX_PLAYER_HEALTH) playerHealth++; // Increase health
+                iPlaySound("health_pickup.wav", false, 80); currentHealthItem.active = false; healthItemSpawnDelay = HEALTH_ITEM_SPAWN_INTERVAL;
             }
         }
 
-
-        if (showHeartbreak)
-        {
-            // Calculate center position for heartbreak image
-            int heartbreakX = (1400 - heartbreak.width) / 2; // Screen width 1400
-            int heartbreakY = (800 - heartbreak.height) / 2; // Screen height 800
-            iShowLoadedImage(heartbreakX, heartbreakY, &heartbreak);
-            if (--heartbreakCounter <= 0) // Decrement counter, hide when 0 or less
-                showHeartbreak = false;
+        if (showHeartbreakEffect) { // Heartbreak display
+            iShowLoadedImage((1400 - heartbreakImage.width) / 2, (800 - heartbreakImage.height) / 2, &heartbreakImage);
+            if (--heartbreakCounter <= 0) showHeartbreakEffect = false;
         }
 
-        // Display game stats
-        char str[30];
-        sprintf(str, "Score: %d", score);
-        iText(10, 770, str, GLUT_BITMAP_HELVETICA_18);
-        sprintf(str, "Speed: %d", obstacleSpeed); // Display as int
-        iText(10, 750, str, GLUT_BITMAP_HELVETICA_18);
+        char scoreText[30]; // UI text
+        sprintf(scoreText, "Score: %d", gameScore); iText(10, 770, scoreText, GLUT_BITMAP_HELVETICA_18);
+        sprintf(scoreText, "Speed: %d", obstacleSpeed); iText(10, 750, scoreText, GLUT_BITMAP_HELVETICA_18);
 
-      
-        for (int i = 0; i < health; ++i)
-        {
-            int currentIconX = HEALTH_ICON_START_X + (healthIcon.width + HEALTH_ICON_GAP) * i;
-            iShowLoadedImage(currentIconX, HEALTH_ICON_Y, &healthIcon);
-        }
-      
-        iShowLoadedImage(10, 680, &coinCollectIcon);                           // Position the coin icon below health
-        char coinCountStr[30];                                                  // Buffer for coins collected number
-        sprintf(coinCountStr, "%d", coinsCollected);                            // Just the number
-        iText(10 + coinCollectIcon.width + 5, 685, coinCountStr, GLUT_BITMAP_HELVETICA_18); // Position number next to icon
+        for (int i = 0; i < playerHealth; ++i) iShowLoadedImage(UI_ICON_START_X + (healthIconImage.width + UI_ICON_GAP) * i, UI_ICON_Y, &healthIconImage);
+        iShowLoadedImage(10, 680, &coinIconImage);
+        sprintf(scoreText, "%d", coinsCollected); iText(10 + coinIconImage.width + 5, 685, scoreText, GLUT_BITMAP_HELVETICA_18);
+        iShowLoadedImage(BACK_BUTTON_X, BACK_BUTTON_Y, &backButtonImage); // Back button
 
-   
-        iShowLoadedImage(BACK_BUTTON_X, BACK_BUTTON_Y, &back);
-    }
-    else if (gamestate == 3)
-    {
-        
-        iSetColor(0, 0, 255); // Blue color
+        if (currentBird == 1) iShowSprite(&bird1Sprite); // Only show the currently active bird
+        else if (currentBird == 2) iShowSprite(&bird2Sprite);
+        else if (currentBird == 3) iShowSprite(&bird3Sprite);
 
-        int enterNameX = (1400 - 200) / 2; // Adjusted for visual centering on a 1400px width
-        iText(enterNameX, 400, "Enter Your Name:", GLUT_BITMAP_TIMES_ROMAN_24);
-
-        
-        int playerNameDisplayX = (1400 - (playerNameIndex * 12)) / 2; // Rough estimate: 12px per char
-        iText(playerNameDisplayX, 370, playerName, GLUT_BITMAP_HELVETICA_18);
-
-    
-
+    } else if (currentGameState == 3) { // Name input
+        iSetColor(0, 0, 255); iText(560, 400, "Enter Your Name:", GLUT_BITMAP_TIMES_ROMAN_24);
+        iText(680 - (playerNameIndex * 6), 370, playerName, GLUT_BITMAP_HELVETICA_18); // Centered name input
         iText(560, 300, "Press ENTER to start the game.", GLUT_BITMAP_HELVETICA_18);
-
-        // Show Back button
-        iShowLoadedImage(BACK_BUTTON_X, BACK_BUTTON_Y, &back);
-    }
-    else if (gamestate == 4)
-    {
-        // About screen
-        iShowImage(0, 0, "aboutus.PNG"); // Ensure aboutus.PNG exists
-
-        // Show Back button
-        iShowLoadedImage(BACK_BUTTON_X, BACK_BUTTON_Y, &back);
-    }
-    else if (gamestate == 6)
-    {
-        // Game Over screen
-        char gameOverStr[] = "GAME OVER";
-        char finalScoreStr[50];
-        sprintf(finalScoreStr, "FINAL SCORE: %d", finalScore);
-        char collectedCoinsGameOverStr[50];
-        sprintf(collectedCoinsGameOverStr, "COINS COLLECTED: %d", coinsCollected);
-
-        // Calculate center positions for text
-        int screenWidth = 1400; // Assuming your window width is 1400
-        int screenHeight = 800; // Assuming your window height is 800
-
-        // Game Over Text
-        iSetColor(255, 0, 0); // Red color for Game Over
-        // Approximate center based on visual testing for GLUT_BITMAP_TIMES_ROMAN_24
-        int gameOverX = (screenWidth - 150) / 2;
-        int gameOverY = screenHeight / 2 + 50; // Above center
-        iText(gameOverX, gameOverY, gameOverStr, GLUT_BITMAP_TIMES_ROMAN_24);
-
-        // Final Score Text
-        iSetColor(0, 0, 255);           // Blue color for Final Score
-        int finalScoreX = (screenWidth - 250) / 2; // Approximate center
-        int finalScoreY = screenHeight / 2;        // Center
-        iText(finalScoreX, finalScoreY, finalScoreStr, GLUT_BITMAP_TIMES_ROMAN_24);
-
-        // Coins Collected Text (also blue), displayed below Final Score
-        int coinsCollectedX = (screenWidth - 300) / 2;
-        int coinsCollectedY = screenHeight / 2 - 50; // Below Final Score
-        iText(coinsCollectedX, coinsCollectedY, collectedCoinsGameOverStr, GLUT_BITMAP_TIMES_ROMAN_24);
-
-      
-        iShowLoadedImage(BACK_BUTTON_X, BACK_BUTTON_Y, &back);
-    }
-    else if (gamestate == 2)
-    {
-        // High Scores screen
-        iSetColor(255, 255, 255); // Default to White for "High Scores" title
-
-        // Center "High Scores" title
-        int highScoreTitleTextWidth = 150; // Estimated width for "High Scores" with HELVETICA_18
-        int highScoreTitleX = (1400 - highScoreTitleTextWidth) / 2;
-        iText(highScoreTitleX, 700, "High Scores", GLUT_BITMAP_HELVETICA_18);
-
-        int startY = 650; // Starting Y for the first score entry
-        for (size_t i = 0; i < highScores.size(); i++)
-        {
-            char scoreLine[100];
-            string displayName = highScores[i].name;
-            for (char &c : displayName)
-                if (c == '_')
-                    c = ' '; // Replace underscores back to spaces for display
-
+        iShowLoadedImage(BACK_BUTTON_X, BACK_BUTTON_Y, &backButtonImage);
+    } else if (currentGameState == 4) { // About screen
+        iShowImage(0, 0, "aboutus.PNG"); iShowLoadedImage(BACK_BUTTON_X, BACK_BUTTON_Y, &backButtonImage);
+    } else if (currentGameState == 6) { // Game Over
+        iSetColor(255, 0, 0); iText(625, 450, "GAME OVER", GLUT_BITMAP_TIMES_ROMAN_24);
+        iSetColor(0, 0, 255);
+        char scoreString[50]; sprintf(scoreString, "FINAL SCORE: %d", finalScore); iText(575, 400, scoreString, GLUT_BITMAP_TIMES_ROMAN_24);
+        sprintf(scoreString, "COINS COLLECTED: %d", coinsCollected); iText(550, 350, scoreString, GLUT_BITMAP_TIMES_ROMAN_24);
+        iShowLoadedImage(BACK_BUTTON_X, BACK_BUTTON_Y, &backButtonImage);
+    } else if (currentGameState == 2) { // High Scores
+        iSetColor(255, 255, 255); iText(625, 700, "High Scores", GLUT_BITMAP_HELVETICA_18);
+        int startY = 650;
+        for (size_t i = 0; i < highScores.size(); i++) {
+            char scoreLine[100]; string displayName = highScores[i].name;
+            for (char &c : displayName) if (c == '_') c = ' '; // Display spaces
             sprintf(scoreLine, "%d. %s - %d", (int)(i + 1), displayName.c_str(), highScores[i].score);
 
-            // Set color based on rank
-            if (i == 0)
-            {                         // First place
-                iSetColor(255, 0, 0); // Red
-            }
-            else if (i == 1)
-            {                         // Second place
-                iSetColor(0, 255, 0); // Green
-            }
-            else if (i == 2)
-            {                         // Third place
-                iSetColor(0, 0, 255); // Blue
-            }
-            else
-            {                             // Rest of the players
-                iSetColor(255, 255, 255); // White
-            }
+            if (i == 0) iSetColor(255, 0, 0); // Red for 1st
+            else if (i == 1) iSetColor(0, 255, 0); // Green for 2nd
+            else if (i == 2) iSetColor(0, 0, 255); // Blue for 3rd
+            else iSetColor(255, 255, 255); // White for rest
 
-          
-            int estimatedLineLength = 30; // Max estimated characters in a score line
-            int charWidthEstimate = 10;   // Estimated average pixel width per character for GLUT_BITMAP_HELVETICA_18
-            int scoreLinePixelWidth = estimatedLineLength * charWidthEstimate;
-
-            // Calculate centered X position for the current score line
-            int centeredScoreLineX = (1400 - scoreLinePixelWidth) / 2;
-
-            iText(centeredScoreLineX, startY - i * 30, scoreLine, GLUT_BITMAP_HELVETICA_18);
+            iText(700 - (strlen(scoreLine) * 5), startY - i * 30, scoreLine, GLUT_BITMAP_HELVETICA_18); // Centered score
         }
-        // Back button to return to main menu
-        iShowLoadedImage(BACK_BUTTON_X, BACK_BUTTON_Y, &back);
+        iShowLoadedImage(BACK_BUTTON_X, BACK_BUTTON_Y, &backButtonImage);
     }
 }
 
-/*
-function iMouseMove() is called when the user moves the mouse.
-(mx, my) is the position where the mouse pointer is.
-*/
-void iMouseMove(int mx, int my)
-{
-    // Handle menu button hover effects
-    for (int i = 0; i < 5; i++)
-    {
-        hoverMenu[i] = (mx >= menuX[i] && mx <= menuX[i] + menuW &&
-                        my >= menuY[i] && my <= menuY[i] + menuH);
-    }
+// Handles mouse movement for menu button hovering
+void iMouseMove(int mouseX, int mouseY) {
+    for (int i = 0; i < 5; i++) isMenuHovered[i] = (mouseX >= menuButtonX[i] && mouseX <= menuButtonX[i] + menuButtonWidth && mouseY >= menuButtonY[i] && mouseY <= menuButtonY[i] + menuButtonHeight);
 }
+void iMouseDrag(int mouseX, int mouseY) {} // Mouse drag function (empty)
 
-/*
-function iMouseDrag() is called when the user presses and drags the mouse.
-(mx, my) is the position where the mouse pointer is.
-*/
-void iMouseDrag(int mx, int my)
-{
-    // place your codes here
-}
-
-/*
-function iMouse() is called when the user presses/releases the mouse.
-(mx, my) is the position where the mouse pointer is.
-*/
-void iMouse(int button, int state, int mx, int my)
-{
-    if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
-    {
-        if (gamestate == 0) // Main Menu clicks
-        {
-            if (mx >= 350 && mx <= (350 + 190) && my >= 220 && my <= (220 + 268)) // Start Game button
-            {
-                gamestate = 3; // Switch to name input screen
-                inputName = true;
-                playerName[0] = '\0'; // Clear previous name
-                playerNameIndex = 0;
-            }
-            else if (mx >= 850 && mx <= (850 + 190) && my >= 200 && my <= (200 + 268)) // High Scores button
-            {
-                gamestate = 2; // Switch to high scores screen
-            }
-            else if (mx >= 100 && mx <= (100 + 190) && my >= 20 && my <= (20 + 268)) // Help button (placeholder)
-            {
-                // No action defined for Help yet
-            }
-            else if (mx >= 610 && mx <= (610 + 190) && my >= 20 && my <= 288) // About button
-            {
-                gamestate = 4; // Switch to About screen
-            }
-            else if (mx >= 1120 && mx <= (1120 + 190) && my >= 20 && my <= 288) // Exit button
-            {
-                exit(0); // Terminate the program
+// Handles mouse clicks
+void iMouse(int button, int state, int mouseX, int mouseY) {
+    if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
+        if (currentGameState == 0) { // Main Menu clicks
+            if (mouseX >= 350 && mouseX <= 350 + menuButtonWidth && mouseY >= 260 && mouseY <= 260 + menuButtonHeight) { // Start Game
+                currentGameState = 3; isInputtingName = true; playerName[0] = '\0'; playerNameIndex = 0;
+            } else if (mouseX >= 850 && mouseX <= 850 + menuButtonWidth && mouseY >= 240 && mouseY <= 240 + menuButtonHeight) { // High Scores
+                currentGameState = 2;
+            } else if (mouseX >= 100 && mouseX <= 100 + menuButtonWidth && mouseY >= 60 && mouseY <= 60 + menuButtonHeight) { // Help
+                // Implement help screen functionality if needed
+            } else if (mouseX >= 610 && mouseX <= 610 + menuButtonWidth && mouseY >= 60 && mouseY <= 60 + menuButtonHeight) { // About
+                currentGameState = 4;
+            } else if (mouseX >= 1120 && mouseX <= 1120 + menuButtonWidth && mouseY >= 60 && mouseY <= 60 + menuButtonHeight) { // Exit
+                exit(0);
             }
         }
-        // --- Back button click handling ---
-        // Apply this logic to ALL game states where the back button should be clickable.
-        if (gamestate == 1 || gamestate == 2 || gamestate == 3 || gamestate == 4 || gamestate == 6)
-        {
-            // Use the consistent position and actual image dimensions for click detection
-            if (mx >= BACK_BUTTON_X && mx <= BACK_BUTTON_X + back.width &&
-                my >= BACK_BUTTON_Y && my <= BACK_BUTTON_Y + back.height)
-            {
-                gamestate = 0;      // Return to main menu
-                iPauseSound(easy); // Pause game music if playing
+        // Back button for all applicable states
+        if ((currentGameState >= 1 && currentGameState <= 4) || currentGameState == 6) {
+            if (mouseX >= BACK_BUTTON_X && mouseX <= BACK_BUTTON_X + backButtonImage.width && mouseY >= BACK_BUTTON_Y && mouseY <= BACK_BUTTON_Y + backButtonImage.height) {
+                currentGameState = 0; iPauseSound(backgroundMusicHandle);
             }
         }
     }
 }
+void iMouseWheel(int direction, int mouseX, int mouseY) {} // Mouse wheel function (empty)
 
-/*
-function iMouseWheel() is called when the user scrolls the mouse wheel.
-dir = 1 for up, -1 for down.
-*/
-void iMouseWheel(int dir, int mx, int my)
-{
-    // place your code here
-}
+// Handles keyboard input
+void iKeyboard(unsigned char key) {
+    if (currentGameState == 3 && isInputtingName) { // Name input
+        if (key == '\b') { // Backspace
+            if (playerNameIndex > 0) playerName[--playerNameIndex] = '\0';
+        } else if (key == '\r' || key == '\n') { // Enter
+            isInputtingName = false; currentGameState = 1;
+            backgroundMusicHandle = iPlaySound("Easy.wav", true, 80); // Start game music
 
-void iKeyboard(unsigned char key)
-{
-    if (gamestate == 3 && inputName)
-    { // Only allow input on name screen
-        if (key == '\b')
-        { // Backspace
-            if (playerNameIndex > 0)
-            {
-                playerNameIndex--;
-                playerName[playerNameIndex] = '\0'; // Remove last character
+            // Reset game state variables
+            gameScore = 0; scoreUpdateTick = 0; playerHealth = 3; coinsCollected = 0;
+            obstacleSpeed = 2; coinSpeed = obstacleSpeed;
+            lastSpeedUpScore30 = 0; lastSpeedUpScore50 = 0; // Reset speed-up trackers
+
+            for (int i = 0; i < 3; i++) { // Reset obstacles
+                obstacleY[i] = 800 + i * 267; obstacleX[i] = rand() % (1400 - obstacleFrames[obstacleImageIndex[i]].width);
+                obstacleImageIndex[i] = rand() % 3; isObstacleActive[i] = true;
+                iChangeSpriteFrames(&obstacleSprites[i], &obstacleFrames[obstacleImageIndex[i]], 1); iSetSpritePosition(&obstacleSprites[i], obstacleX[i], obstacleY[i]);
             }
-        }
-        else if (key == '\r' || key == '\n')
-        { // Enter key to confirm name
-            inputName = false;
-            gamestate = 1;                         // Start the game
-            easy = iPlaySound("Easy.wav", true, 80); // Start game background music
+            for (size_t i = 0; i < activeCoins.size(); ++i) activeCoins[i].active = false; // Reset coins
+            for (int i = 0; i < MAX_ACTIVE_COINS; ++i) spawnCoin(); // Initial coins
 
-            // Reset game values for a fresh start
-            score = 0;
-            scoretick = 0;
-            health = 3;
-            coinsCollected = 0;        // Reset coinsCollected on new game
-            obstacleSpeed = 2;         // Reset speed to initial integer value
-            coinSpeed = obstacleSpeed; // Reset coin speed as well
+            currentHealthItem.active = false; healthItemSpawnDelay = HEALTH_ITEM_SPAWN_INTERVAL; // Reset health item
 
-            // Reset obstacles
-            for (int i = 0; i < 3; i++)
-            {
-                obsy[i] = 800 + i * 267;                       // Place off-screen at top
-                obsx[i] = rand() % (1400 - obsimgfrm[obsi[i]].width); // Random X
-                obsi[i] = rand() % 3;
-                isObsActive[i] = true;
-                iChangeSpriteFrames(&obsimg[i], &obsimgfrm[obsi[i]], 1);
-                iSetSpritePosition(&obsimg[i], obsx[i], obsy[i]);
-            }
+            currentBird = 0; birdSpawnTimerTicks = 0; nextBirdSpawnTickTarget = rand() % 21 + 15; // Reset bird
 
-            // Reset and spawn initial coins
-            for (size_t i = 0; i < coins.size(); ++i)
-            {
-                coins[i].active = false; // Deactivate all existing coins
-            }
-            // Spawn initial set of coins to populate the screen (up to MAX_ACTIVE_COINS)
-            for (int i = 0; i < MAX_ACTIVE_COINS; ++i)
-            {
-                spawnCoin();
-            }
+            isEvilBalloonActive = false; evilBalloonX = 1400; evilBalloonY = 750; evilBalloonDirection = -1;
+            evilBalloonCooldown = EVIL_BALLOON_SPAWN_INTERVAL; // Set initial cooldown for evil balloon
 
-            // Reset health item state for a fresh start (NEW)
-            currentHealthItem.active = false;
-            healthItemSpawnDelay = HEALTH_ITEM_SPAWN_INTERVAL; // Reset initial delay for health item
-        }
-        else if (playerNameIndex < (int)sizeof(playerName) - 1)
-        { // Add character if space available
-            if (isalnum(key) || key == ' ')
-            { // Only allow alphanumeric characters and space
-                playerName[playerNameIndex++] = key;
-                playerName[playerNameIndex] = '\0'; // Null-terminate the string
-            }
+        } else if (playerNameIndex < (int)sizeof(playerName) - 1 && (isalnum(key) || key == ' ')) { // Add character to name
+            playerName[playerNameIndex++] = key; playerName[playerNameIndex] = '\0';
         }
     }
 }
+void iSpecialKeyboard(unsigned char key) {} // Special keyboard function (empty)
 
-void iSpecialKeyboard(unsigned char key)
-{
-    // Special keys like arrow keys are handled in `move()` which is called by a timer.
-    // This function is present to satisfy iGraphics API but might not need specific code here
-    // if movement is continuous based on `isSpecialKeyPressed`.
-}
+int main(int argc, char *argv[]) {
+    glutInit(&argc, argv); srand(time(0));
 
-int main(int argc, char *argv[])
-{
-    glutInit(&argc, argv);
-    srand(time(0)); // Seed the random number generator using current time
-
-    for (int i = 0; i < 14; ++i)
-    {
-        sprintf(coinFiles[i], "coin%d.png", i + 1); // Generates "coin1.png", "coin2.png", etc.
+    // Load and resize coin frames
+    for (int i = 0; i < 14; ++i) {
+        sprintf(coinFileNames[i], "coin%d.png", i + 1);
+        iLoadImage(&coinAnimationFrames[i], coinFileNames[i]);
+        iResizeImage(&coinAnimationFrames[i], 30, 30);
     }
-    for (int i = 0; i < 14; ++i)
-    {
-        iLoadImage(&coinFrames[i], coinFiles[i]);
- 
-        iResizeImage(&coinFrames[i], 30, 30); // These are the coins that move on screen
-    }
+    coinWidth = coinAnimationFrames[0].width; coinHeight = coinAnimationFrames[0].height;
+
+    // Load obstacle images
+    for (int i = 0; i < 3; i++) iLoadImage(&obstacleFrames[i], obstacleFiles[i]);
    
-    if (14 > 0)
-    {
-        coinWidth = coinFrames[0].width;
-        coinHeight = coinFrames[0].height;
-    }
-   
-    for (int i = 0; i < 3; i++)
-    {
-        iLoadImage(&obsimgfrm[i], obs[i]);
-    }
+    // Load balloon images
+    for (int j = 0; j < 10; j++) iLoadImage(&hotAirBalloonFrames[j], hotAirBalloonFiles[j]);
+    hotAirBalloonWidth = hotAirBalloonFrames[0].width; hotAirBalloonHeight = hotAirBalloonFrames[0].height;
 
-
-    for (int j = 0; j < 10; j++)
-    {
-        iLoadImage(&habimgfrm[j], hab[j]);
+    // Initialize balloon sprites
+    for (int j = 0; j < 10; ++j) {
+        iInitSprite(&hotAirBalloonSprites[j]);
+        iChangeSpriteFrames(&hotAirBalloonSprites[j], &hotAirBalloonFrames[j], 1);
+        iSetSpritePosition(&hotAirBalloonSprites[j], playerX, playerY);
     }
 
-    
-    if (10 > 0)
-    {
-        habWidth = habimgfrm[0].width;
-        habHeight = habimgfrm[0].height;
+    loadHighScores();
+
+    // Initialize obstacle sprites
+    for (int i = 0; i < 3; i++) {
+        iInitSprite(&obstacleSprites[i]); obstacleImageIndex[i] = rand() % 3;
+        iChangeSpriteFrames(&obstacleSprites[i], &obstacleFrames[obstacleImageIndex[i]], 1);
+        obstacleX[i] = rand() % (1400 - obstacleFrames[obstacleImageIndex[i]].width);
+        obstacleY[i] = 800 + i * 267; // Staggered above screen
+        iSetSpritePosition(&obstacleSprites[i], obstacleX[i], obstacleY[i]);
     }
 
-    
-    for (int j = 0; j < 10; ++j)
-    {
-        iInitSprite(&habimg[j]);
-        iChangeSpriteFrames(&habimg[j], &habimgfrm[j], 1); // Set initial frame
-        iSetSpritePosition(&habimg[j], x, y);              // Set initial position
+    // Load cloud images
+    for (int i = 0; i < 7; i++) iLoadImage(&cloudImage[i], cloudFiles[i]);
+
+    // Load menu images
+    for (int i = 0; i < 5; i++) {
+        iLoadImage(&menuButtonImage[i], menuButtonFiles[i]);
+        iLoadImage(&menuButtonBigImage[i], menuButtonBigFiles[i]);
     }
+    iLoadImage(&menuTitleImage, "menuhab.png");
+    iLoadImage(&skyImage, "sky.jpg");
+    iLoadImage(&heartbreakImage, "heartbreak.png");
+    iLoadImage(&backButtonImage, "backbutton.png");
 
-    loadHighScores(); // Load high scores at startup
+    iLoadImage(&healthIconImage, "Healthicon.png"); iResizeImage(&healthIconImage, 30, 30);
+    iLoadImage(&coinIconImage, "Coinicon.png"); iResizeImage(&coinIconImage, 30, 30);
 
- 
-    for (int i = 0; i < 3; i++)
-    {
-        iInitSprite(&obsimg[i]);
-        obsi[i] = rand() % 3; // Randomly select an obstacle image
-        iChangeSpriteFrames(&obsimg[i], &obsimgfrm[obsi[i]], 1);
-        obsx[i] = rand() % (1400 - obsimgfrm[obsi[i]].width); // Random X within window width
-        obsy[i] = 800 + i * 267;                            // Start above the screen, staggered
-        iSetSpritePosition(&obsimg[i], obsx[i], obsy[i]);
-    }
+    // Load & init health item
+    iLoadImage(&healthItemImage, "livesprite.png"); iResizeImage(&healthItemImage, 30, 30);
+    healthItemWidth = healthItemImage.width; healthItemHeight = healthItemImage.height;
+    currentHealthItem.active = false; healthItemSpawnDelay = HEALTH_ITEM_SPAWN_INTERVAL;
 
-    
-    for (int i = 0; i < 7; i++)
-    {
-        iLoadImage(&cloudImg[i], cloud[i]);
-    }
+    // Load bird images and resize
+    for (int i = 0; i < 9; i++) { iLoadImage(&bird1Frames[i], bird1files[i]); iResizeImage(&bird1Frames[i], 75, 75); }
+    for(int i=0; i < 6; i++) { iLoadImage(&bird2Frames[i], bird2files[i]); iResizeImage(&bird2Frames[i], 75, 75); }
+    for(int i=0; i < 10; i++) { iLoadImage(&bird3Frames[i], bird3files[i]); iResizeImage(&bird3Frames[i], 75, 75); }
 
-   
-    for (int i = 0; i < 5; i++)
-    {
-        iLoadImage(&menuImg[i], menu[i]);
-        iLoadImage(&menuBigImg[i], menuBig[i]);
-    }
-    iLoadImage(&menuImghab, "menuhab.png");      // Menu title image
-    iLoadImage(&skyImg, "sky.jpg");             // Background sky image
-    iLoadImage(&heartbreak, "heartbreak.png"); // Collision feedback image
-    iLoadImage(&back, "backbutton.png");       // Back button image
+    // Initialize bird sprites (off-screen)
+    iInitSprite(&bird1Sprite); iInitSprite(&bird2Sprite); iInitSprite(&bird3Sprite);
+    iSetSpritePosition(&bird1Sprite, -200, -200); iSetSpritePosition(&bird2Sprite, -200, -200); iSetSpritePosition(&bird3Sprite, -200, -200);
 
+    // --- EVIL BALLOON INITIALIZATION ---
+    iLoadImage(&evilBalloonImage, "evilballoon.png"); iResizeImage(&evilBalloonImage, 100, 100);
+    iInitSprite(&evilBalloonSprite); iChangeSpriteFrames(&evilBalloonSprite, &evilBalloonImage, 1);
+    iSetSpritePosition(&evilBalloonSprite, evilBalloonX, evilBalloonY);
+    // --- END EVIL BALLOON INITIALIZATION ---
 
-    iLoadImage(&healthIcon, "Healthicon.png");
-    iResizeImage(&healthIcon, 30, 30); // Set the desired size for the health icon
- 
+    // Set timers for various game functions
+    iSetTimer(500, animateBalloon);
+    iSetTimer(16, moveCloudsX);
+    iSetTimer(16, moveCloudsY);
+    iSetTimer(1, movePlayer);
+    iSetTimer(16, manageObstacles);
+    iSetTimer(33, updateScore);
+    iSetTimer(50, animateCoins);
+    iSetTimer(16, manageCoinMovement);
+    iSetTimer(16, manageHealthItemMovement);
+    iSetTimer(100, manageSpecialObstacles);
 
-   
-    iLoadImage(&coinCollectIcon, "Coinicon.png"); // Load the Coinicon.png file (was .jpg)
-    iResizeImage(&coinCollectIcon, 30, 30);      // Resize it to 30x30 pixels
-   
-
-    // Load and resize the health item image (NEW)
-    iLoadImage(&healthItemImage, "livesprite.png");
-    iResizeImage(&healthItemImage, 30, 30); // Resize to match coin size for consistency
-
-    // Set dimensions for collision detection (NEW)
-    healthItemWidth = healthItemImage.width;
-    healthItemHeight = healthItemImage.height;
-
-    // Initialize the single health item (NEW)
-    currentHealthItem.active = false; // Start inactive
-    healthItemSpawnDelay = HEALTH_ITEM_SPAWN_INTERVAL; // Initial delay before first spawn attempt
-
-   
-    iSetTimer(500, incmnt);     // Balloon animation
-    iSetTimer(16, cldx);        // Cloud horizontal movement
-    iSetTimer(16, cldy);        // Cloud vertical movement
-    iSetTimer(1, move);         // Player balloon movement (highly frequent for responsiveness)
-    iSetTimer(16, obstacle);    // Obstacle movement and regeneration
-    iSetTimer(33, scoreupdate); // Score update and speed increase
-
-    // Coin timers
-    iSetTimer(50, coinAnimate);   // Coin rotation animation (change frame every 50ms)
-    iSetTimer(16, coinMovement); // Coin movement and spawning logic (move every 16ms)
-
-    // Health item timer (NEW)
-    iSetTimer(16, healthItemMovement); // Move and manage spawning of health items
-
-    iInitializeSound(); // Initialize sound system
-
-    
-    iInitialize(1400, 800, "Hot Air Balloon");
-
+    iInitializeSound(); iInitialize(1400, 800, "Hot Air Balloon"); // Init sound and window
     return 0;
 }

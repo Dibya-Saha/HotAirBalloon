@@ -556,3 +556,6 @@ int main(int argc, char *argv[]) {
     iInitialize(1400, 800, "Hot Air Balloon"); // Init window
     return 0;
 }
+
+
+//here is the coin ,life and speed increase by +1 and +2
