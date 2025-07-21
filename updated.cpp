@@ -494,9 +494,9 @@ int main(int argc, char *argv[]) {
     }
     coinWidth = coinAnimationFrames[0].width; coinHeight = coinAnimationFrames[0].height;
 
-    // Load obstacle images
+    // Load obstacle images 
     for (int i = 0; i < 3; i++) iLoadImage(&obstacleFrames[i], obstacleFiles[i]);
-
+ 
     // Load balloon images
     for (int j = 0; j < 10; j++) iLoadImage(&hotAirBalloonFrames[j], hotAirBalloonFiles[j]);
     hotAirBalloonWidth = hotAirBalloonFrames[0].width; hotAirBalloonHeight = hotAirBalloonFrames[0].height;
