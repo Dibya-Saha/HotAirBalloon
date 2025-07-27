@@ -22,13 +22,13 @@ vector<PlayerScore> highScores;           // Vector to store high scores
 const string HIGH_SCORES_FILE = "highscores.txt"; // File name for high scores
 const int MAX_HIGH_SCORES = 10;           // Maximum number of high scores to keep
 
-char playerName[50] = "";             // Player name input buffer
-int playerNameIndex = 0;              // Current index in playerName buffer
-bool isInputtingName = false;         // Flag for name input state
-int finalScore = 0;                   // Score at the end of the game
-int obstacleSpeed = 2;                // Speed of obstacles
-int playerHealth = 3;                 // Player's current health
-int coinsCollected = 0;               // Number of coins collected
+char playerName[50] = "";               // Player name input buffer
+int playerNameIndex = 0;                  // Current index in playerName buffer
+bool isInputtingName = false;             // Flag for name input state
+int finalScore = 0;                       // Score at the end of the game
+int obstacleSpeed = 2;                    // Speed of obstacles
+int playerHealth = 3;                     // Player's current health
+int coinsCollected = 0;                   // Number of coins collected
 
 // Asset paths for various game elements
 const char* hotAirBalloonFiles[] = {"hab001_1.png", "hab002_1.png", "hab003_1.png", "hab004_1.png", "hab005_1.png", "hab006_1.png", "hab007_1.png", "hab008_1.png", "hab009_1.png", "hab010_1.png"};
@@ -51,20 +51,21 @@ int menuButtonWidth = 200, menuButtonHeight = 200; // Menu button dimensions
 Image menuButtonBigImage[5], cloudImage[7], skyImage, heartbreakImage, menuButtonImage[5], menuTitleImage, backButtonImage; // Various game images
 Image hotAirBalloonFrames[10], obstacleFrames[3];   // Image frames for animation
 Sprite hotAirBalloonSprites[10], obstacleSprites[3]; // Sprites for balloon and obstacles
+Image evilBalloonImg;
+Sprite evilBalloon;
+// Bird images and sprites
+Image bird1Frames[9], bird2Frames[6], bird3Frames[10]; // Bird image frames
+Sprite bird1Sprite, bird2Sprite, bird3Sprite;       // Bird sprites
 
-// Bird and Evil Balloon images and sprites
-Image bird1Frames[9], bird2Frames[6], bird3Frames[10], evilBalloonImage; // Bird and evil balloon image frames
-Sprite bird1Sprite, bird2Sprite, bird3Sprite, evilBalloonSprite;         // Bird and evil balloon sprites
-
-int currentGameState = 0;              // Current game state (0:menu, 1:play, 2:HS, 3:name, 4:about, 6:gameover)
+int currentGameState = 0;             // Current game state (0:menu, 1:play, 2:HS, 3:name, 4:about, 6:gameover)
 int gameScore = 0, scoreUpdateTick = 0; // Current game score and update tick
-int balloonFrameIndex = 0;             // Index for hot air balloon animation
+int balloonFrameIndex = 0;            // Index for hot air balloon animation
 int obstacleX[3], obstacleY[3], obstacleImageIndex[3]; // Obstacle positions and image indices
 int playerX = 700, playerY = 70;      // Player balloon position
-int backgroundMusicHandle;             // Handle for background music
+int backgroundMusicHandle;            // Handle for background music
 bool isObstacleActive[3] = {true, true, true}; // Status of obstacles
-bool showHeartbreakEffect = false;     // Flag to show heartbreak image
-int heartbreakCounter = 0;             // Timer for heartbreak display
+bool showHeartbreakEffect = false;    // Flag to show heartbreak image
+int heartbreakCounter = 0;            // Timer for heartbreak display
 
 // Cloud parallax positions and speeds
 double cloudX[] = {200, 350, 500, 800, 600, 920, 1225};
@@ -77,7 +78,7 @@ struct Coin { // Struct to represent a coin
     int frame;   // Current animation frame
     bool active; // Active status
 };
-char coinFileNames[14][15];       // Filenames for coin animation frames
+char coinFileNames[14][15];      // Filenames for coin animation frames
 Image coinAnimationFrames[14];    // Image data for coin animation
 vector<Coin> activeCoins;         // Vector of active coins
 int coinWidth, coinHeight;        // Coin dimensions
@@ -102,31 +103,37 @@ struct HealthItem { // Struct to represent a health item
     bool active; // Active status
 };
 HealthItem currentHealthItem; // The single active health item
-Image healthItemImage;        // Health item image
+Image healthItemImage;       // Health item image
 int healthItemWidth, healthItemHeight; // Health item dimensions
-const int MAX_PLAYER_HEALTH = 3;        // Maximum player health
-int healthItemSpawnDelay = 0;           // Timer for health item spawn
+const int MAX_PLAYER_HEALTH = 3;         // Maximum player health
+int healthItemSpawnDelay = 0;            // Timer for health item spawn
 const int HEALTH_ITEM_SPAWN_INTERVAL = 3000; // Spawn interval in milliseconds
 
 // --- Bird Data ---
-int currentBird = 0;            // 0: no bird, 1-3: specific bird active
+int currentBird = 0;           // 0: no bird, 1-3: specific bird active
 int birdX, birdY;              // Common position for the active bird
-float birdSpeedX, birdSpeedY;   // Speed components for the active bird
-int bird1FrameIndex = 0;        // Animation frame for bird1
-int bird2FrameIndex = 0;        // Animation frame for bird2
-int bird3FrameIndex = 0;        // Animation frame for bird3
+float birdSpeedX, birdSpeedY;  // Speed components for the active bird
+int bird1FrameIndex = 0;       // Animation frame for bird1
+int bird2FrameIndex = 0;       // Animation frame for bird2
+int bird3FrameIndex = 0;       // Animation frame for bird3
 
-int birdSpawnTimerTicks = 0;       // Counts ticks for bird spawning
-int nextBirdSpawnTickTarget = 0;   // Target ticks for next bird spawn
+int birdSpawnTimerTicks = 0;      // Counts ticks for bird spawning
+int nextBirdSpawnTickTarget = 0;  // Target ticks for next bird spawn
 
-// --- Evil Balloon Data ---
-int evilBalloonX = 1400, evilBalloonY = 750; // Evil balloon initial position
-int evilBalloonSpeedX = -25;                 // Horizontal speed of evil balloon
-int evilBalloonSpeedY = -2;                  // Vertical speed of evil balloon (downward)
-int evilBalloonDirection = 1;                // -1: left, 1: right
-bool isEvilBalloonActive = true;             // Flag for evil balloon activity
-int evilBalloonCooldown = 0;                 // Cooldown timer for spawning
-const int EVIL_BALLOON_SPAWN_INTERVAL = 15 * (1000/100); // 15 seconds cooldown (15 * timer interval of 100ms)
+
+
+int evilX = 1400, evilY = 750;
+int evilSpeedX = -25;
+int evilSpeedY = -2;
+int evilDirection = 1; // -1 = left, 1 = right
+int evilTimer = 0;
+int evilSpawnTick = 0;
+bool evilActive = true;
+int evilCooldown = 0;
+int evilStepCounter = 0;
+
+
+
 
 // Updates game score and adjusts obstacle/coin speed based on score
 void updateScore() {
@@ -283,7 +290,7 @@ void manageCoinMovement() {
     if (activeCoinCount < MAX_ACTIVE_COINS && (rand() % 100) < 5) spawnCoin();
 }
 
-// Checks for collision between a health item and obstacles, coins, birds, or evil balloon
+// Checks for collision between a health item and obstacles, coins, or birds
 bool checkHealthItemCollision(int itemLeft, int itemRight, int itemBottom, int itemTop) {
     for (int i = 0; i < 3; ++i) { // Obstacles
         if (isObstacleActive[i]) {
@@ -308,13 +315,6 @@ bool checkHealthItemCollision(int itemLeft, int itemRight, int itemBottom, int i
     if (activeBirdSprite && activeBirdImage && currentBird != 0) {
         if (itemLeft < activeBirdSprite->x + activeBirdImage->width && itemRight > activeBirdSprite->x &&
             itemBottom < activeBirdSprite->y + activeBirdImage->height && itemTop > activeBirdSprite->y) {
-            return true;
-        }
-    }
-    // Check collision with evil balloon
-    if (isEvilBalloonActive) {
-        if (itemLeft < evilBalloonX + evilBalloonImage.width && itemRight > evilBalloonX &&
-            itemBottom < evilBalloonY + evilBalloonImage.height && itemTop > evilBalloonY) {
             return true;
         }
     }
@@ -355,48 +355,28 @@ void manageHealthItemMovement() {
     }
 }
 
-// Resets and spawns a new bird to move horizontally, targeting the player's Y-axis.
+// Resets and spawns a new bird at a random position, aiming towards the player
 void spawnNewBird() {
     currentBird = (rand() % 3) + 1; // Randomly choose bird 1, 2, or 3
+    int targetX = playerX; int targetY = playerY; // Target is player's current position
+    float travelTicks = (float)(rand() % 21 + 15); // 15 to 35 ticks for travel time (1.5 to 3.5 seconds)
 
-    // Target the player's balloon by spawning at a similar height
-    birdY = playerY + (rand() % 101 - 50); // Spawn near player's Y, with a +/- 50px variance
-    if (birdY > 725) birdY = 725; // Clamp to screen bounds (assuming bird height is ~75px)
-    if (birdY < 0) birdY = 0;
-
-    birdSpeedY = 0; // Ensure movement is purely horizontal
-
-    // Birds 1 & 2 come from the left, Bird 3 from the right
-    if (currentBird == 1 || currentBird == 2) {
-        birdX = -100;      // Start off-screen left
-        birdSpeedX = 25;   // Move right
-    } else { // currentBird == 3
-        birdX = 1500;      // Start off-screen right
-        birdSpeedX = -25;  // Move left
+    if (currentBird == 1 || currentBird == 2) { // Bird 1 and 2 spawn from left
+        birdX = -(rand() % 100 + 50); birdY = rand() % 700 + 50;
+        birdSpeedX = (targetX - birdX) / travelTicks; birdSpeedY = (targetY - birdY) / travelTicks;
+    } else { // Bird 3 spawns from right
+        birdX = 1400 + (rand() % 100 + 50); birdY = rand() % 700 + 50;
+        birdSpeedX = (targetX - birdX) / travelTicks; birdSpeedY = (targetY - birdY) / travelTicks;
     }
-
-    // Immediately configure the newly spawned bird's sprite with its initial frame and position.
-    // This ensures it is visible as soon as it's active.
-    if (currentBird == 1) {
-        bird1FrameIndex = 0;
-        iChangeSpriteFrames(&bird1Sprite, &bird1Frames[bird1FrameIndex], 1);
-        iSetSpritePosition(&bird1Sprite, birdX, birdY);
-    } else if (currentBird == 2) {
-        bird2FrameIndex = 0;
-        iChangeSpriteFrames(&bird2Sprite, &bird2Frames[bird2FrameIndex], 1);
-        iSetSpritePosition(&bird2Sprite, birdX, birdY);
-    } else if (currentBird == 3) {
-        bird3FrameIndex = 0;
-        iChangeSpriteFrames(&bird3Sprite, &bird3Frames[bird3FrameIndex], 1);
-        iSetSpritePosition(&bird3Sprite, birdX, birdY);
-    }
+    // Ensure a sufficient minimum speed
+    if (abs(birdSpeedX) < 12) birdSpeedX = (birdSpeedX > 0 ? 12 : -12);
+    if (abs(birdSpeedY) < 12) birdSpeedY = (birdSpeedY > 0 ? 12 : -12);
 
     birdSpawnTimerTicks = 0; // Reset spawn tick counter
-    nextBirdSpawnTickTarget = rand() % 21 + 15; // New random interval for next bird (1.5 to 3.5 seconds)
+    nextBirdSpawnTickTarget = rand() % 21 + 15; // New random interval for next bird
 }
 
-// Manages bird and evil balloon movement and spawning
-// Manages bird and evil balloon movement and spawning
+// Manages bird movement and spawning
 void manageSpecialObstacles() {
     if (currentGameState != 1) return; // Only move special obstacles during gameplay
 
@@ -405,76 +385,24 @@ void manageSpecialObstacles() {
         birdSpawnTimerTicks++;
         if (birdSpawnTimerTicks >= nextBirdSpawnTickTarget) spawnNewBird();
     } else { // Bird is active, move it
-        birdX += birdSpeedX;
-        birdY += birdSpeedY;
+        birdX += birdSpeedX; birdY += birdSpeedY;
 
-        int currentBirdWidth = 0; // Get current bird's dimensions
-        if (currentBird == 1) {
-            currentBirdWidth = bird1Frames[bird1FrameIndex].width;
-        } else if (currentBird == 2) {
-            currentBirdWidth = bird2Frames[bird2FrameIndex].width;
-        } else if (currentBird == 3) {
-            currentBirdWidth = bird3Frames[bird3FrameIndex].width;
-        }
+        int currentBirdWidth = 0, currentBirdHeight = 0; // Get current bird's dimensions
+        if (currentBird == 1) { currentBirdWidth = bird1Frames[bird1FrameIndex].width; currentBirdHeight = bird1Frames[bird1FrameIndex].height; }
+        else if (currentBird == 2) { currentBirdWidth = bird2Frames[bird2FrameIndex].width; currentBirdHeight = bird2Frames[bird2FrameIndex].height; }
+        else if (currentBird == 3) { currentBirdWidth = bird3Frames[bird3FrameIndex].width; currentBirdHeight = bird3Frames[bird3FrameIndex].height; }
 
-        // --- CORRECTED OFF-SCREEN CHECK ---
-        // Deactivate the bird only after it has completely crossed the screen.
-        bool isOffScreen = false;
-        if (birdSpeedX > 0 && birdX > 1400) { // Moving right and has passed the right edge
-            isOffScreen = true;
-        } else if (birdSpeedX < 0 && birdX < -currentBirdWidth) { // Moving left and has passed the left edge
-            isOffScreen = true;
+        if (birdX < -currentBirdWidth || birdX > 1400 + currentBirdWidth || birdY < -currentBirdHeight || birdY > 800 + currentBirdHeight) {
+            currentBird = 0; // Deactivate bird if off-screen
+            birdSpawnTimerTicks = 0; nextBirdSpawnTickTarget = rand() % 21 + 15; return;
         }
-
-        if (isOffScreen) {
-            currentBird = 0; // Deactivate bird
-            birdSpawnTimerTicks = 0;
-            nextBirdSpawnTickTarget = rand() % 21 + 15;
-            return; // Stop processing this bird
-        }
-        // --- END OF CORRECTION ---
 
         // Apply position to the correct sprite and animate
-        if (currentBird == 1) {
-            iSetSpritePosition(&bird1Sprite, birdX, birdY);
-            bird1FrameIndex = (bird1FrameIndex + 1) % 9;
-            iChangeSpriteFrames(&bird1Sprite, &bird1Frames[bird1FrameIndex], 1);
-        } else if (currentBird == 2) {
-            iSetSpritePosition(&bird2Sprite, birdX, birdY);
-            bird2FrameIndex = (bird2FrameIndex + 1) % 6;
-            iChangeSpriteFrames(&bird2Sprite, &bird2Frames[bird2FrameIndex], 1);
-        } else if (currentBird == 3) {
-            iSetSpritePosition(&bird3Sprite, birdX, birdY);
-            bird3FrameIndex = (bird3FrameIndex + 1) % 10;
-            iChangeSpriteFrames(&bird3Sprite, &bird3Frames[bird3FrameIndex], 1);
-        }
-    }
-
-    // Evil balloon movement and spawning
-    if (isEvilBalloonActive) {
-        evilBalloonX += evilBalloonSpeedX * evilBalloonDirection;
-        evilBalloonY += evilBalloonSpeedY;
-        if (evilBalloonX < 20 || evilBalloonX + evilBalloonImage.width > 1400) evilBalloonDirection *= -1; // Change horizontal direction
-        iSetSpritePosition(&evilBalloonSprite, evilBalloonX, evilBalloonY);
-
-        if (evilBalloonX < -evilBalloonImage.width || evilBalloonX > 1400 + evilBalloonImage.width || evilBalloonY < -evilBalloonImage.height || evilBalloonY > 800 + evilBalloonImage.height) { // Offscreen check
-            isEvilBalloonActive = false;
-            evilBalloonX = 1400;
-            evilBalloonY = 750;
-            evilBalloonCooldown = 0;
-        }
-    } else {
-        evilBalloonCooldown++;
-        if (evilBalloonCooldown >= EVIL_BALLOON_SPAWN_INTERVAL) { // Cooldown for evil balloon
-            isEvilBalloonActive = true;
-            evilBalloonX = 1400;
-            evilBalloonY = rand() % 400 + 300;
-            evilBalloonDirection = -1;
-            iSetSpritePosition(&evilBalloonSprite, evilBalloonX, evilBalloonY);
-        }
+        if (currentBird == 1) { iSetSpritePosition(&bird1Sprite, birdX, birdY); bird1FrameIndex = (bird1FrameIndex + 1) % 9; iChangeSpriteFrames(&bird1Sprite, &bird1Frames[bird1FrameIndex], 1); }
+        else if (currentBird == 2) { iSetSpritePosition(&bird2Sprite, birdX, birdY); bird2FrameIndex = (bird2FrameIndex + 1) % 6; iChangeSpriteFrames(&bird2Sprite, &bird2Frames[bird2FrameIndex], 1); }
+        else if (currentBird == 3) { iSetSpritePosition(&bird3Sprite, birdX, birdY); bird3FrameIndex = (bird3FrameIndex + 1) % 10; iChangeSpriteFrames(&bird3Sprite, &bird3Frames[bird3FrameIndex], 1); }
     }
 }
-
 void iDraw() {
     iClear(); iShowLoadedImage(0, 0, &skyImage); // Background
     for (int i = 0; i < 7; i++) iShowLoadedImage(cloudX[i], cloudY[i], &cloudImage[i]); // Clouds
@@ -521,21 +449,6 @@ void iDraw() {
             }
         }
         // --- END BIRD COLLISION LOGIC ---
-
-        // --- EVIL BALLOON COLLISION LOGIC ---
-        if (isEvilBalloonActive) {
-            iShowSprite(&evilBalloonSprite); // Draw the evil balloon
-            if (iCheckCollision(&hotAirBalloonSprites[balloonFrameIndex], &evilBalloonSprite)) {
-                isEvilBalloonActive = false; evilBalloonX = 1400; evilBalloonY = 750; evilBalloonCooldown = 0;
-                showHeartbreakEffect = true; heartbreakCounter = 60;
-                iPauseSound(backgroundMusicHandle); iPlaySound("wrong.wav", false, 80);
-                playerHealth--; // Reduce health
-                if (playerHealth <= 0) {
-                    finalScore = gameScore; addHighScore(playerName, finalScore); currentGameState = 6; // Game over
-                } else iResumeSound(backgroundMusicHandle);
-            }
-        }
-        // --- END EVIL BALLOON COLLISION LOGIC ---
 
         for (size_t i = 0; i < activeCoins.size(); ++i) { // Coins
             if (activeCoins[i].active) {
@@ -665,9 +578,6 @@ void iKeyboard(unsigned char key) {
 
             currentBird = 0; birdSpawnTimerTicks = 0; nextBirdSpawnTickTarget = rand() % 21 + 15; // Reset bird
 
-            isEvilBalloonActive = false; evilBalloonX = 1400; evilBalloonY = 750; evilBalloonDirection = -1;
-            evilBalloonCooldown = EVIL_BALLOON_SPAWN_INTERVAL; // Set initial cooldown for evil balloon
-
         } else if (playerNameIndex < (int)sizeof(playerName) - 1 && (isalnum(key) || key == ' ')) { // Add character to name
             playerName[playerNameIndex++] = key; playerName[playerNameIndex] = '\0';
         }
@@ -688,7 +598,7 @@ int main(int argc, char *argv[]) {
 
     // Load obstacle images
     for (int i = 0; i < 3; i++) iLoadImage(&obstacleFrames[i], obstacleFiles[i]);
-   
+    
     // Load balloon images
     for (int j = 0; j < 10; j++) iLoadImage(&hotAirBalloonFrames[j], hotAirBalloonFiles[j]);
     hotAirBalloonWidth = hotAirBalloonFrames[0].width; hotAirBalloonHeight = hotAirBalloonFrames[0].height;
@@ -733,20 +643,13 @@ int main(int argc, char *argv[]) {
     currentHealthItem.active = false; healthItemSpawnDelay = HEALTH_ITEM_SPAWN_INTERVAL;
 
     // Load bird images and resize
-    for (int i = 0; i < 9; i++) { iLoadImage(&bird1Frames[i], bird1files[i]); iResizeImage(&bird1Frames[i], 100, 100); }
-    for(int i=0; i < 6; i++) { iLoadImage(&bird2Frames[i], bird2files[i]); iResizeImage(&bird2Frames[i], 100, 100); }
-    for(int i=0; i < 10; i++) { iLoadImage(&bird3Frames[i], bird3files[i]); iResizeImage(&bird3Frames[i], 100, 100); }
+    for (int i = 0; i < 9; i++) { iLoadImage(&bird1Frames[i], bird1files[i]); iResizeImage(&bird1Frames[i], 75, 75); }
+    for(int i=0; i < 6; i++) { iLoadImage(&bird2Frames[i], bird2files[i]); iResizeImage(&bird2Frames[i], 75, 75); }
+    for(int i=0; i < 10; i++) { iLoadImage(&bird3Frames[i], bird3files[i]); iResizeImage(&bird3Frames[i], 75, 75); }
 
     // Initialize bird sprites (off-screen)
     iInitSprite(&bird1Sprite); iInitSprite(&bird2Sprite); iInitSprite(&bird3Sprite);
     iSetSpritePosition(&bird1Sprite, -200, -200); iSetSpritePosition(&bird2Sprite, -200, -200); iSetSpritePosition(&bird3Sprite, -200, -200);
-
-    // --- EVIL BALLOON INITIALIZATION ---
-    iLoadImage(&evilBalloonImage, "evilballoon.png"); iResizeImage(&evilBalloonImage, 100, 100);
-    iInitSprite(&evilBalloonSprite); iChangeSpriteFrames(&evilBalloonSprite, &evilBalloonImage, 1);
-    iSetSpritePosition(&evilBalloonSprite, evilBalloonX, evilBalloonY);
-    evilBalloonCooldown = 0; // Fix: Initialize cooldown to 0 so it can start counting up to spawn
-    // --- END EVIL BALLOON INITIALIZATION ---
 
     // Set timers for various game functions
     iSetTimer(500, animateBalloon);
