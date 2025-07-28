@@ -22,11 +22,11 @@ int obstacleSpeed = 2;
 int playerHealth = 3;
 int coinsCollected = 0;
 
-char hotAirBalloonFiles[10][14] = {"hab001_1.png", "hab002_1.png", "hab003_1.png", "hab004_1.png", "hab005_1.png", "hab006_1.png", "hab007_1.png", "hab008_1.png", "hab009_1.png", "hab010_1.png"};
-char obstacleFiles[3][9] = {"obs1.png", "obs2.png", "obs3.png"};
-char cloudFiles[7][11] = {"cloud1.png", "cloud2.png", "cloud3.png", "cloud4.png", "cloud5.png", "cloud6.png", "cloud7.png"};
-char menuButtonFiles[5][11] = {"menu_1.png", "menu_2.png", "menu_3.png", "menu_4.png", "menu_5.png"};
-char menuButtonBigFiles[5][15] = {"menu_1_big.png", "menu_2_big.png", "menu_3_big.png", "menu_4_big.png", "menu_5_big.png"};
+const char *hotAirBalloonFiles[] = {"hab001_1.png", "hab002_1.png", "hab003_1.png", "hab004_1.png", "hab005_1.png", "hab006_1.png", "hab007_1.png", "hab008_1.png", "hab009_1.png", "hab010_1.png"};
+const char *obstacleFiles[] = {"obs1.png", "obs2.png", "obs3.png"};
+const char *cloudFiles[] = {"cloud1.png", "cloud2.png", "cloud3.png", "cloud4.png", "cloud5.png", "cloud6.png", "cloud7.png"};
+const char *menuButtonFiles[] = {"menu_1.png", "menu_2.png", "menu_3.png", "menu_4.png", "menu_5.png"};
+const char *menuButtonBigFiles[] = {"menu_1_big.png", "menu_2_big.png", "menu_3_big.png", "menu_4_big.png", "menu_5_big.png"};
 
 char bird1files[9][14] = {"tile001.png", "tile002.png", "tile003.png", "tile004.png", "tile005.png", "tile006.png", "tile007.png", "tile008.png", "tile009.png"};
 char bird2files[6][10] = {"bb1.png", "bb2.png", "bb3.png", "bb4.png", "bb5.png", "bb6.png"};
@@ -41,8 +41,8 @@ Image menuButtonBigImage[5], cloudImage[7], skyImage, heartbreakImage, menuButto
 Image hotAirBalloonFrames[10], obstacleFrames[3];
 Sprite hotAirBalloonSprites[10], obstacleSprites[3];
 
-Image bird1Frames[9], bird2Frames[6], bird3Frames[10];
-Sprite bird1Sprite, bird2Sprite, bird3Sprite;
+Image bird1Frames[9], bird2Frames[6], bird3Frames[10], evilBalloonImage;
+Sprite bird1Sprite, bird2Sprite, bird3Sprite, evilBalloonSprite;
 
 int currentGameState = 0;
 int gameScore = 0, scoreUpdateTick = 0;
@@ -104,6 +104,14 @@ int bird3FrameIndex = 0;
 
 int birdSpawnTimerTicks = 0;
 int nextBirdSpawnTickTarget = 0;
+
+int evilBalloonX = 1400, evilBalloonY = 750;
+int evilBalloonSpeedX = -25;
+int evilBalloonSpeedY = -2;
+int evilBalloonDirection = 1;
+bool isEvilBalloonActive = true;
+int evilBalloonCooldown = 0;
+const int EVIL_BALLOON_SPAWN_INTERVAL = 15 * (1000 / 100);
 
 void updateScore()
 {
@@ -389,6 +397,15 @@ bool checkHealthItemCollision(int itemLeft, int itemRight, int itemBottom, int i
             return true;
         }
     }
+
+    if (isEvilBalloonActive)
+    {
+        if (itemLeft < evilBalloonX + evilBalloonImage.width && itemRight > evilBalloonX &&
+            itemBottom < evilBalloonY + evilBalloonImage.height && itemTop > evilBalloonY)
+        {
+            return true;
+        }
+    }
     return false;
 }
 
@@ -487,7 +504,7 @@ void spawnNewBird()
     nextBirdSpawnTickTarget = rand() % 21 + 15;
 }
 
-// Manages bird and spawning
+// Manages bird  and spawning
 void manageSpecialObstacles()
 {
     if (currentGameState != 1)
@@ -555,6 +572,35 @@ void manageSpecialObstacles()
             iChangeSpriteFrames(&bird3Sprite, &bird3Frames[bird3FrameIndex], 1);
         }
     }
+
+    if (isEvilBalloonActive)
+    {
+        evilBalloonX += evilBalloonSpeedX * evilBalloonDirection;
+        evilBalloonY += evilBalloonSpeedY;
+        if (evilBalloonX < 20 || evilBalloonX + evilBalloonImage.width > 1400)
+            evilBalloonDirection *= -1;
+        iSetSpritePosition(&evilBalloonSprite, evilBalloonX, evilBalloonY);
+
+        if (evilBalloonX < -evilBalloonImage.width || evilBalloonX > 1400 + evilBalloonImage.width || evilBalloonY < -evilBalloonImage.height || evilBalloonY > 800 + evilBalloonImage.height)
+        {
+            isEvilBalloonActive = false;
+            evilBalloonX = 1400;
+            evilBalloonY = 750;
+            evilBalloonCooldown = 0;
+        }
+    }
+    else
+    {
+        evilBalloonCooldown++;
+        if (evilBalloonCooldown >= EVIL_BALLOON_SPAWN_INTERVAL)
+        {
+            isEvilBalloonActive = true;
+            evilBalloonX = 1400;
+            evilBalloonY = rand() % 400 + 300;
+            evilBalloonDirection = -1;
+            iSetSpritePosition(&evilBalloonSprite, evilBalloonX, evilBalloonY);
+        }
+    }
 }
 
 void iDraw()
@@ -618,6 +664,31 @@ void iDraw()
             if (activeBirdSprite && iCheckCollision(&hotAirBalloonSprites[balloonFrameIndex], activeBirdSprite))
             {
                 currentBird = 0;
+                showHeartbreakEffect = true;
+                heartbreakCounter = 60;
+                iPauseSound(backgroundMusicHandle);
+                iPlaySound("wrong.wav", false, 80);
+                playerHealth--;
+                if (playerHealth <= 0)
+                {
+                    finalScore = gameScore;
+                    addHighScore(playerName, finalScore);
+                    currentGameState = 6;
+                }
+                else
+                    iResumeSound(backgroundMusicHandle);
+            }
+        }
+
+        if (isEvilBalloonActive)
+        {
+            iShowSprite(&evilBalloonSprite);
+            if (iCheckCollision(&hotAirBalloonSprites[balloonFrameIndex], &evilBalloonSprite))
+            {
+                isEvilBalloonActive = false;
+                evilBalloonX = 1400;
+                evilBalloonY = 750;
+                evilBalloonCooldown = 0;
                 showHeartbreakEffect = true;
                 heartbreakCounter = 60;
                 iPauseSound(backgroundMusicHandle);
@@ -852,6 +923,12 @@ void iKeyboard(unsigned char key)
             currentBird = 0;
             birdSpawnTimerTicks = 0;
             nextBirdSpawnTickTarget = rand() % 21 + 15;
+
+            isEvilBalloonActive = false;
+            evilBalloonX = 1400;
+            evilBalloonY = 750;
+            evilBalloonDirection = -1;
+            evilBalloonCooldown = EVIL_BALLOON_SPAWN_INTERVAL;
         }
         else if (playerNameIndex < (int)sizeof(playerName) - 1 && (isalnum(key) || key == ' '))
         {
@@ -960,6 +1037,13 @@ int main(int argc, char *argv[])
     iSetSpritePosition(&bird1Sprite, -200, -200);
     iSetSpritePosition(&bird2Sprite, -200, -200);
     iSetSpritePosition(&bird3Sprite, -200, -200);
+
+    iLoadImage(&evilBalloonImage, "evilballoon.png");
+    iResizeImage(&evilBalloonImage, 100, 100);
+    iInitSprite(&evilBalloonSprite);
+    iChangeSpriteFrames(&evilBalloonSprite, &evilBalloonImage, 1);
+    iSetSpritePosition(&evilBalloonSprite, evilBalloonX, evilBalloonY);
+    evilBalloonCooldown = 0;
 
     iSetTimer(500, animateBalloon);
     iSetTimer(16, moveCloudsX);
