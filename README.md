@@ -16,7 +16,7 @@ git clone https://github.com/Dibya-Saha/HotAirBalloon.git
    
 ## Gameplay Video on Youtube 
 
-https://youtu.be/c26ZlFc-RkE?si=apKoVCK-Ti_tgpbq
+[https://youtu.be/c26ZlFc-RkE?si=apKoVCK-Ti_tgpbq](https://youtu.be/c26ZlFc-RkE)
 ## iGraphics Documentation 
 https://mahirlabibdihan.github.io/Modern-iGraphics/
 
